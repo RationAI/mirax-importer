@@ -9,7 +9,7 @@ function file_iterator_predicate(info) {
 /**
  * Iterator, call uploader for ANY file info you deem necessary
  */
-const regExp = /^((w+)[-_](w+)[-_](w+).*)\..*$/;
+const regExp = /^((\w+)[-_](\w+)[-_](\w+).*)\..*$/;
 function upload_iterator(infoNode, uploader, errorHandler) {
     //upload the mrxs folder
 
@@ -37,10 +37,10 @@ function upload_iterator(infoNode, uploader, errorHandler) {
     for (const bin in bin_root) {
         const bin_file = bin_root[bin]?.["."];
         if (bin_file) {
-            uploader(bin_file, request_id);
+            uploader(bin_file, request_id, `${request_id}/${name}/${name}`);
         } // todo else fail?
     }
-    uploader(fileInfo, request_id);
+    uploader(fileInfo, request_id, `${request_id}/${name}`);
 }
 
 
@@ -63,7 +63,7 @@ const UI = {
         document.getElementById("import").style.display = value ? 'block' : 'none';
     },
     get submitButton() {
-        return document.getElementById("uploader");
+        return document.getElementById("start-upload");
     },
     get form() {
         return document.getElementById("uploader");
@@ -76,6 +76,15 @@ const UI = {
     },
     get inputFileInfo() {
         return document.getElementById("file-uploader");
+    },
+    get inputRelativePath() {
+        return document.getElementById("relative-path-uploader");
+    },
+    get inputMetaField() {
+        return document.getElementById("meta-uploader");
+    },
+    get formSubmitButton() {
+        return document.getElementById("send-one-file");
     },
     showError(title, ...args) {
 
@@ -170,13 +179,17 @@ class Uploader {
     startBulkUpload(bulkJobList) {
         this._joblist = [];
 
-        function uploadOneFile(fileInfo, requestId) {
+        function uploadOneFile(fileInfo, requestId, relativePath) {
             UI.inputRequestId.value = requestId;
 
             const transfer = new DataTransfer();
             transfer.items.add(fileInfo);
-            UI.inputFileInfo.files = transfer;
-            UI.form.submit();
+            UI.inputFileInfo.files = transfer.files;
+            UI.inputRelativePath.value = relativePath;
+            UI.inputMetaField.value = JSON.stringify({
+                timeStamp: Date.now()
+            });
+            UI.formSubmitButton.click();
         }
 
         for (const bulk of bulkJobList) {
@@ -184,7 +197,7 @@ class Uploader {
 
             for (const elem of bulk) {
                 if (typeof elem === "object") {
-                    this._joblist.push(uploadOneFile.bind(this, elem.fileInfo, elem.requestId));
+                    this._joblist.push(uploadOneFile.bind(this, elem.fileInfo, elem.requestId, elem.relativePath));
                 }//else err
             }
         }
@@ -204,8 +217,8 @@ class Uploader {
             const path = file.webkitRelativePath.split("/");
             let ref = hierarchy;
             for (let segment of path) {
-                ref.segment = ref.segment || {"..": ref};
-                ref = ref.segment;
+                ref[segment] = ref[segment] || {"..": ref};
+                ref = ref[segment];
             }
 
             ref["."] = file;
@@ -223,10 +236,11 @@ class Uploader {
         const bulkList = [];
         for (let target of iterator) {
             const uploadBulk = [];
-            upload_iterator(target, (fileInfo, requestId) => {
+            upload_iterator(target, (fileInfo, requestId, relativePath) => {
                 uploadBulk.push({
                     fileInfo: fileInfo,
-                    requestId: requestId
+                    requestId: requestId,
+                    relativePath: relativePath
                 });
             }, (error) => {
                 uploadBulk.push(error);

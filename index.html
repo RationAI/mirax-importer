@@ -5,6 +5,8 @@
   <script type="text/javascript" src="jquery.min.js"></script>
   <script type="text/javascript" src="jquery.form.min.js"></script>
   <script type="text/javascript" src="utils.js"></script>
+  <script type="text/javascript" src="file_loader.js"></script>
+
   <link rel="stylesheet" href="primer_css.css">
   <title>WSI Loader</title>
   <meta charset="UTF-8">
@@ -24,7 +26,7 @@
   </div>
   <br>
   <p>
-    <button type="submit" id="start-upload" class="btn btn-primary"><i class="fa fa-upload"></i> Upload</button> &nbsp;
+    <button id="start-upload" class="btn btn-primary"><i class="fa fa-upload"></i> Upload</button> &nbsp;
   </p>
 </div>
 
@@ -37,11 +39,12 @@
 </div>
 
 
-<form action="server" style="display: none" method="post" id="uploader" enctype="multipart/form-data">
-  <input type="hidden" name="upload_file_event" value="1">
-
-  <input type="file" style="display:none;" id="file-uploader" name="target" webkitdirectory multiple required/>
-  <input type="hidden" id="request-id-uploader" name="requestId" required/>
+<form action="server/index.php" style="visibility: hidden; opacity: 0" method="post" id="uploader" enctype="multipart/form-data">
+  <input type="file" id="file-uploader" name="target"/>
+  <input type="hidden" id="request-id-uploader" name="requestId"/>
+  <input type="hidden" id="relative-path-uploader" name="relativePath"/>
+  <input type="hidden" id="meta-uploader" name="meta"/>
+  <input type="submit" id="send-one-file" name="upload_file_event" value="1"/>
 </form>
 
 </body>
