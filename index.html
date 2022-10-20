@@ -1,0 +1,49 @@
+
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <script type="text/javascript" src="jquery.min.js"></script>
+  <script type="text/javascript" src="jquery.form.min.js"></script>
+  <script type="text/javascript" src="utils.js"></script>
+  <link rel="stylesheet" href="primer_css.css">
+  <title>WSI Loader</title>
+  <meta charset="UTF-8">
+</head>
+
+<body data-color-mode="auto" data-light-theme="light" data-dark-theme="dark_dimmed" >
+
+<div id="import">
+
+  <div class="p-2">
+
+    <label for="file-drag-drop" class="drop-container">
+      <span class="drop-title">Click to upload or drag&drop</span>
+      <input type="file" id="file-drag-drop" name="dir_upload[]" webkitdirectory multiple required/>
+    </label>
+
+  </div>
+  <br>
+  <p>
+    <button type="submit" id="start-upload" class="btn btn-primary"><i class="fa fa-upload"></i> Upload</button> &nbsp;
+  </p>
+</div>
+
+<div id="progress">
+  <div class='progress' id="progress_div" style="display: none">
+    <div class='bar' id='bar1'></div>
+    <div class='percent' id='percent1'>0%</div>
+  </div>
+
+</div>
+
+
+<form action="server" style="display: none" method="post" id="uploader" enctype="multipart/form-data">
+  <input type="hidden" name="upload_file_event" value="1">
+
+  <input type="file" style="display:none;" id="file-uploader" name="target" webkitdirectory multiple required/>
+  <input type="hidden" id="request-id-uploader" name="requestId" required/>
+</form>
+
+</body>
+</html>
+
