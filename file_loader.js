@@ -83,6 +83,9 @@ const UI = {
     get inputMetaField() {
         return document.getElementById("meta-uploader");
     },
+    get inputFileName() {
+        return document.getElementById("filename-uploader");
+    },
     get formSubmitButton() {
         return document.getElementById("send-one-file");
     },
@@ -97,6 +100,7 @@ class Uploader {
         this.running = false;
 
         $(UI.submitButton).on("click", () => self.start());
+        $("#remove-upload").on("click", () => self.formSubmit("clean", {}, false))
         $(UI.form).ajaxForm({
             beforeSubmit: this.uploadBeforeSubmit.bind(this),
             uploadProgress: this.uploadProgress.bind(this),
@@ -125,12 +129,42 @@ class Uploader {
         window.removeEventListener("beforeunload", preventExit);
 
         if (error) {
-            UI.showError(error());
+            UI.showError(error);
         }
         //todo cleanup
         UI.visibleUploadPanel = true;
     }
 
+///////////////////////////////
+///  Form Helpers
+///////////////////////////////
+
+    formFill(opts, withFileData=true) {
+        UI.inputRequestId.value = opts.requestId || "";
+
+        if (opts.fileInfo) {
+            if (withFileData) {
+                const transfer = new DataTransfer();
+                transfer.items.add(opts.fileInfo);
+                UI.inputFileInfo.files = transfer.files;
+            }
+            UI.inputFileName.value = opts.fileInfo.name;
+        } else {
+            UI.inputFileName.value = opts.fileName || "";
+        }
+        UI.inputRelativePath.value = opts.relativePath || "";
+        UI.inputMetaField.value = JSON.stringify({
+            timeStamp: Date.now()
+        });
+    }
+
+    formSubmit(command, opts=undefined, withFileData=true) {
+        if (opts) this.formFill(opts, withFileData);
+
+        const submit = UI.formSubmitButton;
+        submit.value = command;
+        UI.formSubmitButton.click();
+    }
 
 ///////////////////////////////
 ///  Events
@@ -160,49 +194,80 @@ class Uploader {
     }
 
     uploadFinish(xhr) {
-        $("body").html(xhr.responseText);
-        // document.getElementById("progress_div").style.display="none";
-        console.log(xhr.responseText);
+        let success = false, data;
+        try {
+            data = JSON.parse(xhr.responseText);
+            success = data.status === "success";
+            console.log(data);
+        } catch (e) {
+            console.error(e, xhr.responseText);
+        }
 
-        //todo success...
-        this._uploadStep();
+        if (success) {
+            $("#code").append(xhr.responseText + "\n\n");
+            // document.getElementById("progress_div").style.display="none";
+
+            //todo success...
+            this._uploadStep();
+        } else {
+            $("#code").append(xhr.responseText + "\n\n Failure: skipping bulk job! \n\n");
+            this._uploadBulkStep();
+        }
     }
 
 ///////////////////////////////
 ///  CORE
 ///////////////////////////////
 
+    _uploadBulkStep() {
+        if (this._bi >= this._joblist.length - 1) {
+            this.finish();
+            return;
+        }
+        this._bi++;
+        this._i = 0;
+        this._uploadStep();
+    }
+
     _uploadStep() {
-        this._joblist[this._i++]();
+        const jobs = this._joblist[this._bi].jobList;
+
+        if (this._i >= jobs.length) {
+            return this._uploadBulkStep();
+        }
+        jobs[this._i++]();
     }
 
     startBulkUpload(bulkJobList) {
         this._joblist = [];
 
-        function uploadOneFile(fileInfo, requestId, relativePath) {
-            UI.inputRequestId.value = requestId;
-
-            const transfer = new DataTransfer();
-            transfer.items.add(fileInfo);
-            UI.inputFileInfo.files = transfer.files;
-            UI.inputRelativePath.value = relativePath;
-            UI.inputMetaField.value = JSON.stringify({
-                timeStamp: Date.now()
-            });
-            UI.formSubmitButton.click();
-        }
-
         for (const bulk of bulkJobList) {
-            //todo render html
+            //todo render html using
+            bulk.jobList = [];
 
-            for (const elem of bulk) {
-                if (typeof elem === "object") {
-                    this._joblist.push(uploadOneFile.bind(this, elem.fileInfo, elem.requestId, elem.relativePath));
-                }//else err
+            if (bulk.parseErrors.length > 0) {
+                //todo rendeer also errors from bulk.parseErrors
+                continue;
             }
+
+            const bulkData = bulk.data;
+
+            let targetElem = null;
+            for (const elem of bulkData) {
+                if (elem.fileInfo.name.endsWith("mrxs")) {
+                    targetElem = elem;
+                }
+
+                bulk.jobList.push(this.formSubmit.bind(this, "uploadFile", elem));
+            }
+
+            //bulk upload finished, now perform some processing
+            bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", targetElem, false));
         }
-        this._i = 0;
-        this._uploadStep();
+
+        this._joblist = bulkJobList;
+        this._bi = -1; //bulk steps increases by 1
+        this._uploadBulkStep();
     }
 
     startUploading() {
@@ -236,6 +301,8 @@ class Uploader {
         const bulkList = [];
         for (let target of iterator) {
             const uploadBulk = [];
+            const parseErrors = [];
+
             upload_iterator(target, (fileInfo, requestId, relativePath) => {
                 uploadBulk.push({
                     fileInfo: fileInfo,
@@ -243,9 +310,15 @@ class Uploader {
                     relativePath: relativePath
                 });
             }, (error) => {
-                uploadBulk.push(error);
+                parseErrors.push(error);
             });
-            bulkList.push(uploadBulk);
+
+            bulkList.push({
+                data: uploadBulk,
+                parseErrors: parseErrors,
+                runtimeErrors: [],
+                runtimeWarnings: []
+            });
         }
         this.startBulkUpload(bulkList);
     }

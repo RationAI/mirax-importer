@@ -27,6 +27,8 @@
   <br>
   <p>
     <button id="start-upload" class="btn btn-primary"><i class="fa fa-upload"></i> Upload</button> &nbsp;
+    <button id="remove-upload" class="btn btn-primary"><i class="fa fa-upload"></i> Delete all uploaded</button> &nbsp;
+
   </p>
 </div>
 
@@ -38,13 +40,16 @@
 
 </div>
 
+<pre id="code" class="code"></pre>
+
 
 <form action="server/index.php" style="visibility: hidden; opacity: 0" method="post" id="uploader" enctype="multipart/form-data">
-  <input type="file" id="file-uploader" name="target"/>
+  <input type="file" id="file-uploader" name="uploadedFile"/>
   <input type="hidden" id="request-id-uploader" name="requestId"/>
   <input type="hidden" id="relative-path-uploader" name="relativePath"/>
   <input type="hidden" id="meta-uploader" name="meta"/>
-  <input type="submit" id="send-one-file" name="upload_file_event" value="1"/>
+  <input type="hidden" id="filename-uploader" name="fileName"/>
+  <input type="submit" id="send-one-file" name="command" value=""/>
 </form>
 
 </body>
