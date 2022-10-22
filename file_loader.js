@@ -89,6 +89,9 @@ const UI = {
     get formSubmitButton() {
         return document.getElementById("send-one-file");
     },
+    get progress() {
+        return document.getElementById("progress");
+    },
     showError(title, ...args) {
 
     }
@@ -102,11 +105,34 @@ class Uploader {
         $(UI.submitButton).on("click", () => self.start());
         $("#remove-upload").on("click", () => self.formSubmit("clean", {}, false))
         $(UI.form).ajaxForm({
-            beforeSubmit: this.uploadBeforeSubmit.bind(this),
-            uploadProgress: this.uploadProgress.bind(this),
-            success: this.uploadSuccess.bind(this),
-            complete: this.uploadFinish.bind(this)
+            beforeSubmit: () => self._onBeforeSubmit(),
+            uploadProgress: (e, p, t, pp) => self._onUploadProgress(e, p, t, pp),
+            success: () => self._onUploadSuccess(),
+            complete: (xhr) => {
+                let success = false, data;
+                try {
+                    data = JSON.parse(xhr.responseText);
+                    success = data.status === "success";
+                    console.log("Server response:", data);
+                } catch (e) {
+                    console.error(e, xhr.responseText);
+                    data = {
+                        status: "error",
+                        message: "Unknown error.",
+                        payload: e
+                    };
+                }
+
+                const willContinue = self._onUploadFinish(success, data);
+                if (willContinue) {
+                    this._uploadStep();
+                } else {
+                    this._uploadBulkStep();
+                }
+            }
         });
+
+        this.setFormHandlers(undefined);
     }
 
     start() {
@@ -139,7 +165,48 @@ class Uploader {
 ///  Form Helpers
 ///////////////////////////////
 
+    /**
+     *
+     * @param bulkItem bulk item data
+     * @param onFinish perform action when query finished - returns true if the bulk job should continue
+     */
+    setFormHandlers(bulkItem, onFinish=(success, json)=>{}) {
+        if (typeof bulkItem !== "object") {
+            this._onBeforeSubmit = () => {};
+            this._onUploadProgress = (event, position, total, percentComplete) => {};
+            this._onUploadSuccess = () => {};
+            this._onUploadFinish = onFinish.bind(this);
+        } else {
+            this._onBeforeSubmit = () => {
+                this.updateBulkElementDownloading(this._bi, bulkItem, this._i);
+            };
+            this._onUploadProgress = (event, position, total, percentComplete) => {
+                const percentVal = percentComplete + '%';
+                $('#bar1').width(percentVal);
+                $('#percent1').html(percentVal);
+            };
+            this._onUploadSuccess = () => {
+                //nothing...
+            };
+            this._onUploadFinish = (success, json) => {
+                if (success) {
+                    this.updateBulkElementProcessing(this._bi, bulkItem);
+                    // document.getElementById("progress_div").style.display="none";
+                } else {
+                    this.updateBulkElementError(this._bi, json.message);
+                }
+                return success; //continue only if successful
+            };
+        }
+    }
+
     formFill(opts, withFileData=true) {
+        if (opts.handler) {
+            this.setFormHandlers(undefined, opts.handler);
+        } else {
+            this.setFormHandlers(opts);
+        }
+
         UI.inputRequestId.value = opts.requestId || "";
 
         if (opts.fileInfo) {
@@ -166,52 +233,63 @@ class Uploader {
         UI.formSubmitButton.click();
     }
 
-///////////////////////////////
-///  Events
-///////////////////////////////
 
-    uploadBeforeSubmit() {
-        document.getElementById("progress_div").style.display="block";
-        const percentVal = '0%';
-        $('#bar').width(percentVal)
-        $('#percent').html(percentVal);
-        console.log(percentVal);
+    //html
+    createBulkProgressElement(title, index, bulk) {
+        $(UI.progress).append(`<div class="py-2 px-4 m-2 rounded border pointer">
+<h3>${title}</h3>
+<div id="bulk-element-${index}" class="mt-1 mx-1"><span class="m-2">Waiting in queue</span></div>
+</div>`);
     }
 
-    uploadProgress(event, position, total, percentComplete) {
-        const percentVal = percentComplete + '%';
-        $('#bar').width(percentVal);
-        console.log(percentVal);
-
-        $('#percent').html(percentVal);
+    updateBulkElementError(index, error) {
+        $(`#bulk-element-${index}`).html(`
+          <div class="error-container">${error}</div>
+        `);
     }
 
-    uploadSuccess() {
-        const percentVal = '100%';
-        $('#bar').width(percentVal);
-        console.log(percentVal);
-        $('#percent').html(percentVal);
-    }
-
-    uploadFinish(xhr) {
-        let success = false, data;
-        try {
-            data = JSON.parse(xhr.responseText);
-            success = data.status === "success";
-            console.log(data);
-        } catch (e) {
-            console.error(e, xhr.responseText);
-        }
-
-        if (success) {
-            $("#code").append(xhr.responseText + "\n\n");
-            // document.getElementById("progress_div").style.display="none";
-
-            //todo success...
-            this._uploadStep();
+    updateBulkElementDownloading(index, bulkItem, bulkItemIndex) {
+        if (bulkItemIndex === 0) {
+            $(`#bulk-element-${index}`).html(`
+            <div id="progress-done"></div>
+          <div id="progress-active"></div>
+        `);
         } else {
-            $("#code").append(xhr.responseText + "\n\n Failure: skipping bulk job! \n\n");
-            this._uploadBulkStep();
+            $("#progress-done").append(`
+<div class="flex-1">${bulkItem.fileName}</div><div class="flex-1" id="bulk-${index}-item-${bulkItemIndex-1}"></div>`);
+        }
+        $("#progress-active").html(`<span class="flex-1">${bulkItem.fileName}</span>      
+    <span class="flex-1 flex-row">
+        <span class='percent mx-2' id='percent1'>0%</span>
+        <span class='border rounded d-inline-block' style="width: calc(100% - 50px);"><span class="bar" id="bar1"></span></span></span>`);
+    }
+
+    updateBulkElementProcessing(index, bulk) {
+        $(`#bulk-element-${index}`).html(`
+          <div class="Label mt-2 px-2 py-1">
+            <span>Submitted for processing</span>
+            <span class="AnimatedEllipsis"></span>
+        </div>
+        `);
+    }
+
+    updateBulkElementFinished(index, bulk) {
+
+        //todo check mark
+        $(`#bulk-element-${index}`).html(`
+          <div class="Label mt-2 px-2 py-1" 
+          style="background-color: var(--color-bg-success) !important; border-color: var(--color-border-success)">
+           <span class="material-icons">done</span> <span>Done</span>
+        </div>`);
+    }
+
+    copyBulkItem(item, withFileInfo = false) {
+        return {
+            fileInfo: withFileInfo && item.fileInfo,
+            requestId: item.requestId,
+            relativePath: item.relativePath,
+            fileName: item.fileName,
+            handler: undefined,
         }
     }
 
@@ -241,12 +319,16 @@ class Uploader {
     startBulkUpload(bulkJobList) {
         this._joblist = [];
 
-        for (const bulk of bulkJobList) {
-            //todo render html using
+        for (let i = 0; i < bulkJobList.length; i++) {
+            const bulk = bulkJobList[i];
             bulk.jobList = [];
 
+            bulk.index = i;
+
             if (bulk.parseErrors.length > 0) {
-                //todo rendeer also errors from bulk.parseErrors
+                const targetElem = bulk.data.find(x => x.fileInfo.name.endsWith("mrxs"));
+                this.createBulkProgressElement(targetElem?.fileInfo?.name || "Item " + i, i, bulk);
+                this.updateBulkElementError(i, bulk.parseErrors.join("<br>"));
                 continue;
             }
 
@@ -261,9 +343,24 @@ class Uploader {
                 bulk.jobList.push(this.formSubmit.bind(this, "uploadFile", elem));
             }
 
+            //copy main element and perform file exists check that skips the bulk job if
+            const copy = this.copyBulkItem(targetElem);
+            copy.handler = (success, json) => {
+                const continues = !success || json?.payload !== true;
+                if (!continues) {
+                    json.status = "info";
+                    json.message = "Target skipped: the target already exists.";
+                }
+                return continues;
+            };
+            bulk.jobList.unshift(this.formSubmit.bind(this, "checkFileExists", copy));
+
+            this.createBulkProgressElement(targetElem.fileInfo?.name || "Item " + (i+1), i, bulk);
+
             //bulk upload finished, now perform some processing
             bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", targetElem, false));
         }
+
 
         this._joblist = bulkJobList;
         this._bi = -1; //bulk steps increases by 1
@@ -307,17 +404,20 @@ class Uploader {
                 uploadBulk.push({
                     fileInfo: fileInfo,
                     requestId: requestId,
-                    relativePath: relativePath
+                    relativePath: relativePath,
+                    fileName: fileInfo.name,
                 });
             }, (error) => {
                 parseErrors.push(error);
+                uploadBulk.push({
+                    fileInfo: target["."],
+                    fileName: target["."].name,
+                });
             });
 
             bulkList.push({
                 data: uploadBulk,
-                parseErrors: parseErrors,
-                runtimeErrors: [],
-                runtimeWarnings: []
+                parseErrors: parseErrors
             });
         }
         this.startBulkUpload(bulkList);

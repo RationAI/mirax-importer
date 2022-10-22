@@ -1,3 +1,30 @@
+
+/* Show error in a nice box, use: <div class="error-container">text<code>hidden details</code></div> */
+.error-container {
+    background: var(--color-bg-danger);
+    text-overflow: ellipsis;
+    cursor: auto;
+}
+.error-container::before {
+    content: 'warning';
+    font-family: 'Material Icons';
+    color: var(--color-icon-danger);
+    font-size: initial;
+    padding: 3px 9px;
+    /*vertical-align: sub;*/
+}
+.error-container code {
+    display: none;
+    padding: 3px 9px;
+}
+.error-container:hover code {
+    display: block;
+}
+.error-container:hover {
+    max-height: initial;
+}
+
+
 body
 {
     padding: 30px
@@ -10,28 +37,24 @@ form
     border-radius: 10px;
     padding: 15px
 }
-.progress
-{
-    display:none;
-    position:relative;
-    width:400px;
-    border: 1px solid #ddd;
-    padding: 1px;
-    border-radius: 3px;
+
+
+#progress div:hover {
+    background: var(--color-bg-tertiary);
 }
-.bar
-{
-    background-color: #B4F5B4;
+
+
+#progress-active, #progress-done {
+    display: flex;
+    flex-direction: row;
+}
+
+.bar {
+    background-color: var(--color-icon-success);
     width:0%;
-    height:20px;
-    border-radius: 3px;
-}
-.percent
-{
-    position:absolute;
-    display:inline-block;
-    top:3px;
-    left:48%;
+    height:4px;
+    vertical-align: center;
+    border-radius: 1px;
 }
 
 /**https://nikitahl.com/custom-styled-input-type-file*/
@@ -64,6 +87,10 @@ form
 .drop-container:hover {
     background: #eee;
     border-color: #111;
+}
+
+.pointer {
+    cursor: pointer;
 }
 
 .drop-title {
