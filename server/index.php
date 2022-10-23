@@ -1,16 +1,22 @@
 <?php
 
 $upload_root = "/mnt/data/visualization/importer/data";
-function file_uploaded($filename, $filepath, $request_id) {
-    //shell_exec("vips tiffsave --tile --pyramid --compression=jpeg --Q=80 --tile-width 512 --tile-height 512 --bigtiff $filepath");
+$log_file = "$upload_root/log.txt";
+$this_url = "https://rationai-vis.ics.muni.cz/visualization/importer/server/";
+$server_root = "/mnt/data/visualization/importer/server"; //absolute position of core files wrt. index.php server
 
-    global $upload_root;
-    return shell_exec("$upload_root/my_script.sh 2>&1 | tee -a $upload_root/log.txt 2>/dev/null >/dev/null &");
-}
 
 ///////////////////////////////
 ///  UTILS
 ///////////////////////////////
+
+function file_uploaded($filename, $filepath, $request_id, $session_id) {
+    global $log_file, $server_root;
+    //executes shell script as a background task, copies to output to the log file and stores it
+    //todo what to do with log files?
+    //todo sanitize vars so that the execution does not pass unsafe stuff
+    return shell_exec("$server_root/job.sh 2>&1 '$filename' '$filepath' '$request_id' '$session_id' | tee -a $log_file 2>/dev/null >/dev/null &");
+}
 
 function erase_dirs() {
     global $upload_root;
@@ -34,7 +40,7 @@ function upload_file($temp, $target_file_name, $relative_directory) {
 
     $target = "$target_directory/$target_file_name";
 
-    //if (file_exists($target)) error("File failed to upload '$relative_directory/$target_file_name' - already exists!");
+    if (file_exists($target)) error("File failed to upload '$relative_directory/$target_file_name' - already exists!");
 
     if (move_uploaded_file($temp, $target)) {
         @chmod($target, 0640);
@@ -140,7 +146,7 @@ switch ($_POST["command"]) {
         if (!$request_id || !$target_path || !$name) {
             error("Cannot upload files - upload failed: missing metadata.");
         }
-        $result = file_uploaded($name, target_upload_path($name, $target_path), $request_id);
+        $result = file_uploaded($name, target_upload_dir($target_path), $request_id, 0); //todo session id
         send_response(array("Processing initiated for $name", $result));
     }
 

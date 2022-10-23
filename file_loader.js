@@ -143,6 +143,7 @@ class Uploader {
         this.running = true;
         window.addEventListener("beforeunload", preventExit);
 
+        $(UI.progress).html("");
         this.startUploading();
         UI.visibleUploadPanel = false;
     }
@@ -350,6 +351,7 @@ class Uploader {
                 if (!continues) {
                     json.status = "info";
                     json.message = "Target skipped: the target already exists.";
+                    this.updateBulkElementError(this._bi, json.message); //todo just info
                 }
                 return continues;
             };
