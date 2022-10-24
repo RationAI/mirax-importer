@@ -93,7 +93,7 @@ const UI = {
         return document.getElementById("progress");
     },
     showError(title, ...args) {
-
+        console.error(title, ...args);
     }
 }
 
@@ -103,12 +103,17 @@ class Uploader {
         this.running = false;
 
         $(UI.submitButton).on("click", () => self.start());
-        $("#remove-upload").on("click", () => self.formSubmit("clean", {}, false))
+
+        //todo remove, for debug reasons
+        $("#remove-upload").on("click", () => self.customRequest(
+            () => self.formSubmit("clean", {handler: ()=>{}}, false))
+        );
         $(UI.form).ajaxForm({
             beforeSubmit: () => self._onBeforeSubmit(),
             uploadProgress: (e, p, t, pp) => self._onUploadProgress(e, p, t, pp),
             success: () => self._onUploadSuccess(),
             complete: (xhr) => {
+                console.log(xhr);
                 let success = false, data;
                 try {
                     data = JSON.parse(xhr.responseText);
@@ -162,6 +167,24 @@ class Uploader {
         UI.visibleUploadPanel = true;
     }
 
+    customRequest(job) {
+        //by default one bulk of one job unit
+        this._joblist = [{
+            jobList: [job]
+        }];
+        this._bi = -1; //bulk steps increases by 1
+        this._uploadBulkStep();
+    }
+
+    // customRequest() {
+    //     //todo separate form with custom inputs
+    //     if (this.running) {
+    //         UI.showError("Upload is running!");
+    //         return;
+    //     }
+    //     this.formSubmit.bind(this, "checkFileExists", copy)
+    // }
+
 ///////////////////////////////
 ///  Form Helpers
 ///////////////////////////////
@@ -179,7 +202,7 @@ class Uploader {
             this._onUploadFinish = onFinish.bind(this);
         } else {
             this._onBeforeSubmit = () => {
-                this.updateBulkElementDownloading(this._bi, bulkItem, this._i);
+                this.updateBulkElementDownloading(this._bi, bulkItem, this._i-1);
             };
             this._onUploadProgress = (event, position, total, percentComplete) => {
                 const percentVal = percentComplete + '%';
@@ -190,10 +213,7 @@ class Uploader {
                 //nothing...
             };
             this._onUploadFinish = (success, json) => {
-                if (success) {
-                    this.updateBulkElementProcessing(this._bi, bulkItem);
-                    // document.getElementById("progress_div").style.display="none";
-                } else {
+                if (!success) {
                     this.updateBulkElementError(this._bi, json.message);
                 }
                 return success; //continue only if successful
@@ -249,33 +269,39 @@ class Uploader {
         `);
     }
 
-    updateBulkElementDownloading(index, bulkItem, bulkItemIndex) {
-        if (bulkItemIndex === 0) {
+    updateBulkElementDownloading(index, bulkItem) {
+        let container = $("#progress-active");
+        if (!container.length) {
             $(`#bulk-element-${index}`).html(`
             <div id="progress-done"></div>
           <div id="progress-active"></div>
         `);
+            container = $("#progress-active");
         } else {
-            $("#progress-done").append(`
-<div class="flex-1">${bulkItem.fileName}</div><div class="flex-1" id="bulk-${index}-item-${bulkItemIndex-1}"></div>`);
+            const jobId = container.data('id');
+            if (!isNaN(Number.parseInt(jobId))) {
+                const prevBulk = this._joblist[index].data[jobId];
+                $("#progress-done").append(`
+<div class="flex-row"><div class="flex-1"><span class="material-icons icon-success">done</span> ${prevBulk.fileName}</div><div class="flex-1" id="bulk-${index}-item-${jobId}"></div></div>`);
+            }
         }
-        $("#progress-active").html(`<span class="flex-1">${bulkItem.fileName}</span>      
+        container.data('id', bulkItem.index);
+        container.html(`<span class="flex-1">${bulkItem.fileName}<span class="AnimatedEllipsis"></span></span>      
     <span class="flex-1 flex-row">
         <span class='percent mx-2' id='percent1'>0%</span>
-        <span class='border rounded d-inline-block' style="width: calc(100% - 50px);"><span class="bar" id="bar1"></span></span></span>`);
+        <span class='border rounded d-inline-block' style="width: calc(100% - 60px);"><span class="bar" id="bar1"></span></span></span>`);
     }
 
-    updateBulkElementProcessing(index, bulk) {
+    updateBulkElementProcessing(index, customMessage="Submitted for processing") {
         $(`#bulk-element-${index}`).html(`
           <div class="Label mt-2 px-2 py-1">
-            <span>Submitted for processing</span>
+            <span>${customMessage}</span>
             <span class="AnimatedEllipsis"></span>
         </div>
         `);
     }
 
-    updateBulkElementFinished(index, bulk) {
-
+    updateBulkElementFinished(index) {
         //todo check mark
         $(`#bulk-element-${index}`).html(`
           <div class="Label mt-2 px-2 py-1" 
@@ -291,6 +317,7 @@ class Uploader {
             relativePath: item.relativePath,
             fileName: item.fileName,
             handler: undefined,
+            index: item.index,
         }
     }
 
@@ -314,6 +341,7 @@ class Uploader {
         if (this._i >= jobs.length) {
             return this._uploadBulkStep();
         }
+
         jobs[this._i++]();
     }
 
@@ -336,11 +364,12 @@ class Uploader {
             const bulkData = bulk.data;
 
             let targetElem = null;
-            for (const elem of bulkData) {
+            for (let j = 0; j < bulkData.length; j++) {
+                const elem = bulkData[j];
                 if (elem.fileInfo.name.endsWith("mrxs")) {
                     targetElem = elem;
                 }
-
+                elem.index = j;
                 bulk.jobList.push(this.formSubmit.bind(this, "uploadFile", elem));
             }
 
@@ -360,9 +389,13 @@ class Uploader {
             this.createBulkProgressElement(targetElem.fileInfo?.name || "Item " + (i+1), i, bulk);
 
             //bulk upload finished, now perform some processing
+            const copy2 = this.copyBulkItem(targetElem);
+            copy2.handler = () => {
+                this.updateBulkElementProcessing(this._bi);
+            }
+            bulk.jobList.push(copy2);
             bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", targetElem, false));
         }
-
 
         this._joblist = bulkJobList;
         this._bi = -1; //bulk steps increases by 1

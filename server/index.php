@@ -11,11 +11,11 @@ $server_root = "/mnt/data/visualization/importer/server"; //absolute position of
 ///////////////////////////////
 
 function file_uploaded($filename, $filepath, $request_id, $session_id) {
-    global $log_file, $server_root;
+    global $log_file, $server_root, $this_url;
     //executes shell script as a background task, copies to output to the log file and stores it
     //todo what to do with log files?
     //todo sanitize vars so that the execution does not pass unsafe stuff
-    return shell_exec("$server_root/job.sh 2>&1 '$filename' '$filepath' '$request_id' '$session_id' | tee -a $log_file 2>/dev/null >/dev/null &");
+    return shell_exec("$server_root/job.sh 2>&1 '$filename' '$filepath' '$request_id' '$session_id' '$this_url' | tee -a '$log_file' 2>/dev/null >/dev/null &");
 }
 
 function erase_dirs() {

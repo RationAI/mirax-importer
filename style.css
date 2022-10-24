@@ -44,17 +44,36 @@ form
 }
 
 
-#progress-active, #progress-done {
+#progress-active {
     display: flex;
     flex-direction: row;
 }
 
+
+#progress-done {
+    display: flex;
+    flex-direction: column;
+
+}
+
+.icon {
+    border-radius: 50%;
+}
+.icon-success {
+    background-color: var(--color-icon-success);
+    border-radius: 50%;
+    color: var(--color-bg-primary);
+    font-size: inherit !important;
+}
+
+
 .bar {
     background-color: var(--color-icon-success);
-    width:0%;
+    width:0;
     height:4px;
     vertical-align: center;
     border-radius: 1px;
+    display: block;
 }
 
 /**https://nikitahl.com/custom-styled-input-type-file*/
