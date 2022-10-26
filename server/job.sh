@@ -13,7 +13,7 @@ TARGET_TIFF="${SOURCE_FILE}.tiff"
 echo "$3:$4 converting tiff..."
 
 #first, we run a conversion to a pyramidal tiff
-vips tiffsave SOURCE_FILE TARGET_TIFF --tile --pyramid --compression=jpeg --Q=80 --tile-width 512 --tile-height 512 --bigtiff
+vips tiffsave $SOURCE_FILE $TARGET_TIFF --tile --pyramid --compression=jpeg --Q=80 --tile-width 512 --tile-height 512 --bigtiff
 
 echo "$3:$4 running inference..."
 

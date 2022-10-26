@@ -144,7 +144,7 @@ switch ($_POST["command"]) {
         $target_path = $_POST["relativePath"];
         $name = $_POST["fileName"];
         if (!$request_id || !$target_path || !$name) {
-            error("Cannot upload files - upload failed: missing metadata.");
+            error("Cannot process files - fileUploadBulkFinished failed: missing metadata.");
         }
         $result = file_uploaded($name, target_upload_dir($target_path), $request_id, 0); //todo session id
         send_response(array("Processing initiated for $name", $result));

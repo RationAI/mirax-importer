@@ -56,7 +56,6 @@ function upload_iterator(infoNode, uploader, errorHandler) {
 
 
 
-const preventExit = () => "Files are still uploading. Are you sure?";
 
 const UI = {
     set visibleUploadPanel(value) {
@@ -97,10 +96,24 @@ const UI = {
     }
 }
 
+const preventExit = () => "Files are still uploading. Are you sure?";
+
+//todo prevent blur not working
+const preventBlur = () => "Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab in a separate browser window.";
+
+
 class Uploader {
     constructor() {
         const self = this;
         this.running = false;
+
+        window.onbeforeunload = () => {
+            return self.running ? "Files are still uploading. Are you sure?" : null;
+        };
+        window.onblur = () => {
+            return self.running ? "Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab in a separate browser window." : null;
+        };
+
 
         $(UI.submitButton).on("click", () => self.start());
 
@@ -146,9 +159,9 @@ class Uploader {
             return;
         }
         this.running = true;
-        window.addEventListener("beforeunload", preventExit);
 
-        $(UI.progress).html("");
+        $(UI.progress).html("<p>Note: uploading does not check for script finish time: submitted for processing means the job has been initiated and will eventually (tens of minutes) finish.</p>" +
+            "<p>Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab <b>opened and focused</b> in a separate browser window.</p>");
         this.startUploading();
         UI.visibleUploadPanel = false;
     }
@@ -158,7 +171,6 @@ class Uploader {
             return;
         }
         this.running = false;
-        window.removeEventListener("beforeunload", preventExit);
 
         if (error) {
             UI.showError(error);
@@ -271,10 +283,10 @@ class Uploader {
 
     updateBulkElementDownloading(index, bulkItem) {
         let container = $("#progress-active");
-        if (!container.length) {
+        if (!container.length || Number.parseInt(container.data('bulk')) !== index) {
             $(`#bulk-element-${index}`).html(`
             <div id="progress-done"></div>
-          <div id="progress-active"></div>
+          <div id="progress-active" data-bulk="${index}"></div>
         `);
             container = $("#progress-active");
         } else {
@@ -342,7 +354,16 @@ class Uploader {
             return this._uploadBulkStep();
         }
 
-        jobs[this._i++]();
+        const executor = jobs[this._i++];
+        if (typeof executor === "function") {
+            return executor(); // not a great design, relies on usage of the firm submit
+        }
+        //not a great design, relies on 'not' using the submit
+
+        if (executor?.handler.apply(this)) {
+            return this._uploadStep();
+        }
+        return this._uploadBulkStep();
     }
 
     startBulkUpload(bulkJobList) {
@@ -392,9 +413,9 @@ class Uploader {
             const copy2 = this.copyBulkItem(targetElem);
             copy2.handler = () => {
                 this.updateBulkElementProcessing(this._bi);
+                return true;
             }
-            bulk.jobList.push(copy2);
-            bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", targetElem, false));
+            bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", copy2, false));
         }
 
         this._joblist = bulkJobList;
