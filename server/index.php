@@ -1,21 +1,52 @@
 <?php
 
-$upload_root = "/mnt/data/visualization/importer/data";
-$log_file = "$upload_root/log.txt";
-$this_url = "https://rationai-vis.ics.muni.cz/visualization/importer/server/";
-$server_root = "/mnt/data/visualization/importer/server"; //absolute position of core files wrt. index.php server
-
+require_once "config.php";
 
 ///////////////////////////////
 ///  UTILS
 ///////////////////////////////
 
+function clean_path($path) {
+    $path = trim($path);
+    $path = trim($path, '\\/');
+    $path = str_replace(array('../', '..\\'), '', $path);
+    if ($path == '..') {
+        $path = '';
+    }
+    return str_replace('\\', '/', $path);
+}
+
 function file_uploaded($filename, $filepath, $request_id, $session_id) {
-    global $log_file, $server_root, $this_url;
+    global $log_file, $server_root;
     //executes shell script as a background task, copies to output to the log file and stores it
-    //todo what to do with log files?
-    //todo sanitize vars so that the execution does not pass unsafe stuff
-    return shell_exec("$server_root/job.sh 2>&1 '$filename' '$filepath' '$request_id' '$session_id' '$this_url' | tee -a '$log_file' 2>/dev/null >/dev/null &");
+    return shell_exec("$server_root/job.sh 2>&1 '$filename' '$filepath' '$request_id' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
+}
+
+function get_db_instance() {
+    require_once "Sessions.php";
+    global $database_file;
+    return new Sessions($database_file);
+}
+
+function register_file_upload($file_real_path, $request_id) {
+    try {
+        $sql = get_db_instance();
+        $sql->saveJobLog($file_real_path, $request_id, "uploaded");
+
+        $row = get_file_status($file_real_path, $request_id, $sql);
+        $data = $row["session"] ?? false;
+        return $data == "uploaded";
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+function get_file_status($file_real_path, $request_id, $db=null) {
+    if ($db == null) {
+        $db = get_db_instance();
+    }
+    $result = $db->getProgress($file_real_path, $request_id);
+    return $result->fetchArray(SQLITE3_ASSOC);
 }
 
 function erase_dirs() {
@@ -57,6 +88,10 @@ function make_dir($path) {
 ///  CORE
 ///////////////////////////////
 
+if (!isset($_POST) || count($_POST) < 1) {
+    $_POST = json_decode(file_get_contents('php://input'), true);
+}
+
 function exception_handler(Throwable $exception) {
     set_error($exception->getMessage());
 }
@@ -85,14 +120,16 @@ function error($title, $payload=null) {
     exit();
 }
 
-function target_upload_dir($relative_path) {
-    //todo sanitize
+function target_upload_dir($relative_path, $processed=false) {
     global $upload_root;
-    return "$upload_root/$relative_path";
+    if ($processed) {
+        return $relative_path; //already processed, return as is
+    }
+    return clean_path("$upload_root/$relative_path");
 }
 
-function target_upload_path($filename, $relative_path) {
-    return  target_upload_dir($relative_path) . "/" . $filename;
+function target_upload_path($filename, $relative_path, $path_processed=false) {
+    return target_upload_dir($relative_path, $path_processed) . "/" . clean_path($filename);
 }
 
 if (!isset($_POST['command'])) {
@@ -128,11 +165,26 @@ switch ($_POST["command"]) {
         $request_id = $_POST["requestId"];
         $target_path = $_POST["relativePath"];
         $name = $_POST["fileName"];
-
         if (!$request_id || !$target_path || !$name) {
-            error("Cannot upload files - upload failed: missing metadata.");
+            error("Cannot verify file existence - execution failed: missing metadata.");
         }
         send_response(file_exists(target_upload_path($name, $target_path)));
+    }
+
+    case "checkFileStatus": {
+        $request_id = $_POST["requestId"];
+        $target_path = $_POST["relativePath"];
+        $name = $_POST["fileName"];
+        if (!$request_id || !$target_path || !$name) {
+            error("Cannot verify file existence - execution failed: missing metadata.");
+        }
+
+        $fp = target_upload_path($name, $target_path);
+        if (!file_exists($fp)) {
+            send_response(array());
+        } else {
+            send_response(get_file_status(target_upload_path($name, $target_path), $request_id));
+        }
     }
 
     case "computeBulkCheckSum": {
@@ -146,7 +198,7 @@ switch ($_POST["command"]) {
         if (!$request_id || !$target_path || !$name) {
             error("Cannot process files - fileUploadBulkFinished failed: missing metadata.");
         }
-        $result = file_uploaded($name, target_upload_dir($target_path), $request_id, 0); //todo session id
+        $result = file_uploaded(clean_path($name), target_upload_dir($target_path), $request_id, 0); //todo session id
         send_response(array("Processing initiated for $name", $result));
     }
 

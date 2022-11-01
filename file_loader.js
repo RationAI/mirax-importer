@@ -338,12 +338,69 @@ class Uploader {
 ///////////////////////////////
 
     _uploadBulkStep() {
+        if (this._bi >= 0) {
+            const updateUI = () => {}; //demo
+
+            const routine = this._joblist[this._bi]?.checkRoutine;
+            if (routine) {
+                const tstamp = Date.now(),
+                    id = setInterval(async () => {
+                        const response = await fetch(UI.form.getAttribute("action"), {
+                            method: "POST",
+                            headers: {
+                                "Content-Type":"application/json",
+                            },
+                            body: JSON.stringify({
+                                command: "checkFileStatus",
+                                requestId: routine.requestId,
+                                relativePath: routine.relativePath,
+                                fileName: routine.fileName
+                            })
+                        });
+                        const data = await response.json();
+
+                        if (!Array.isArray(data) || data.length < 1) {
+                            //todo error
+                            updateUI("Failed to upload file: please, try again.");
+                            clearInterval(id);
+                            return;
+                        }
+
+                        switch (data["session"]) {
+                            case "uploaded":
+                                break;
+                            case "converting":
+                                updateUI("The file is being converted to a pyramidal tiff.");
+                                break;
+                            case "processing":
+                                updateUI("The file is being processed.");
+                                break;
+                            case "finished":
+                                updateUI("The file has been successfully uploaded and processed.");
+                                clearInterval(id);
+                                return;
+                            default:
+                                updateUI("Unknown error. Please, try again.");
+                                console.error("Invalid server response", data);
+                                clearInterval(id);
+                                return;
+                        }
+                        console.log(data);
+
+                        if (Date.now() - tstamp > 3600000) {
+                            clearInterval(id);
+                        }
+                    }, 5000);
+            }
+        }
+
         if (this._bi >= this._joblist.length - 1) {
             this.finish();
             return;
         }
         this._bi++;
         this._i = 0;
+
         this._uploadStep();
     }
 
@@ -416,6 +473,12 @@ class Uploader {
                 return true;
             }
             bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", copy2, false));
+
+            bulk.checkRoutine = {
+                requestId: targetElem.requestId,
+                relativePath: targetElem.relativePath,
+                fileName: targetElem.fileName,
+            };
         }
 
         this._joblist = bulkJobList;
