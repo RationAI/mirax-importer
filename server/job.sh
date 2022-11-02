@@ -1,4 +1,6 @@
 #!/bin/bash
+#cwd
+cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"  # cd current directory
 
 SOURCE_FILE="$2/$1"
 TARGET_TIFF="${SOURCE_FILE}.tiff"
@@ -10,22 +12,20 @@ TARGET_TIFF="${SOURCE_FILE}.tiff"
 # $4 - session id - session number in which the job runs, unique each run (the same for each script run in a session)
 
 #first, we run a conversion to a pyramidal tiff
-./jobStatus SOURCE_FILE $3 "converting"
+./jobStatus.php $SOURCE_FILE $3 "converting"
 echo "$3:$4 converting tiff..."
 
 vips tiffsave $SOURCE_FILE $TARGET_TIFF --tile --pyramid --compression=jpeg --Q=80 --tile-width 512 --tile-height 512 --bigtiff
-sleep 60
 
 
 # then, run a neural network job
-./jobStatus SOURCE_FILE $3 "processing"
+./jobStatus.php $SOURCE_FILE $3 "processing"
 echo "$3:$4 running inference..."
 
-#todo
-sleep 60
+sleep 10
 
 # finally, log this job as finished, php runs update on database logs
-./jobStatus SOURCE_FILE $3 "finished"
+./jobStatus.php $SOURCE_FILE $3 "finished"
 
 if [ $? -eq 0 ]
 then

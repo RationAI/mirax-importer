@@ -25,7 +25,7 @@ class Sessions extends SQLite3
     }
 
     public function setProgress($file, $request_id, $data) {
-        $stmt = $this->ensure($this->prepare("UPDATE logs SET tstamp = CURRENT_TIMESTAMP, session = ? WHERE file = ? AND request_id = ?"));
+        $stmt = $this->ensure($this->prepare("UPDATE logs SET tstamp = CURRENT_TIMESTAMP, session = ? WHERE file = ? AND request_id = ? ORDER BY tstamp DESC LIMIT 1"));
         $stmt->bindValue(1, $data, SQLITE3_TEXT);
         $stmt->bindValue(2, $file, SQLITE3_TEXT);
         $stmt->bindValue(3, $request_id, SQLITE3_TEXT);
@@ -33,7 +33,7 @@ class Sessions extends SQLite3
     }
 
     public function getProgress($file, $request_id) {
-        $stmt = $this->ensure($this->prepare("SELECT * FROM logs WHERE file = ? AND request_id = ?"));
+        $stmt = $this->ensure($this->prepare("SELECT * FROM logs WHERE file = ? AND request_id = ? ORDER BY tstamp DESC"));
         $stmt->bindValue(1, $file, SQLITE3_TEXT);
         $stmt->bindValue(2, $request_id, SQLITE3_TEXT);
         return $this->ensure($stmt->execute());

@@ -66,12 +66,11 @@ function upload_file($temp, $target_file_name, $relative_directory) {
     global $upload_root;
     if (!is_writable($upload_root)) error("Missing permissions for the root directory!");
 
-    if (!make_dir($target_directory)) error("Target directory '$target_directory' is not create-able!");
+    $dir_err = make_dir($target_directory);
+    if ($dir_err != "") error("Target directory '$target_directory' is not create-able! <code>$dir_err</code>");
     if (!is_writable($target_directory)) error("Missing permissions for the target upload directory!");
 
     $target = "$target_directory/$target_file_name";
-
-    if (file_exists($target)) error("File failed to upload '$relative_directory/$target_file_name' - already exists!");
 
     if (move_uploaded_file($temp, $target)) {
         @chmod($target, 0640);
@@ -81,7 +80,19 @@ function upload_file($temp, $target_file_name, $relative_directory) {
 }
 
 function make_dir($path) {
-    return is_dir($path) || mkdir($path, 0777, true);
+    if (is_dir($path)) return "";
+
+    function get_err() {
+        $err = error_get_last();
+        if (is_array($err)) {
+            return $err["message"] ?? implode(" | ", $err);
+        }
+        return "Unknown error: mkdir.";
+    }
+
+    if (!@mkdir($path, 0777, true)) return get_err();
+    if (!@chmod($path, 0777)) return get_err();
+    return "";
 }
 
 ///////////////////////////////
@@ -125,7 +136,7 @@ function target_upload_dir($relative_path, $processed=false) {
     if ($processed) {
         return $relative_path; //already processed, return as is
     }
-    return clean_path("$upload_root/$relative_path");
+    return "/" . clean_path("$upload_root/$relative_path");
 }
 
 function target_upload_path($filename, $relative_path, $path_processed=false) {
@@ -151,13 +162,17 @@ switch ($_POST["command"]) {
             error("Cannot upload files - upload failed: missing metadata.");
         }
 
-        $name = $file_data["name"];
+        $name = clean_path($file_data["name"]);
         if (!upload_file($file_data["tmp_name"], $name, $target_path)) {
             error("File failed to upload '$target_path/$name'!", array(
                 "errorCode" => $file_data["errors"]
             ));
         }
 
+        $target_directory = target_upload_dir($target_path);
+        if (!register_file_upload("$target_directory/$name", $request_id)) {
+            error("File uploaded but the system failed to create an upload record: '$target_path/$name'!");
+        }
         send_response();
     }
 

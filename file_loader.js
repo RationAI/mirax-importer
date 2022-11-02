@@ -106,6 +106,8 @@ class Uploader {
     constructor() {
         const self = this;
         this.running = false;
+        this.jobTimeout = 3600000;
+        this.jobCheckRoutinePeriod = 30000;
 
         window.onbeforeunload = () => {
             return self.running ? "Files are still uploading. Are you sure?" : null;
@@ -318,7 +320,7 @@ class Uploader {
         $(`#bulk-element-${index}`).html(`
           <div class="Label mt-2 px-2 py-1" 
           style="background-color: var(--color-bg-success) !important; border-color: var(--color-border-success)">
-           <span class="material-icons">done</span> <span>Done</span>
+           <span class="material-icons" style="font-size: 9px">done</span> <span>Done</span>
         </div>`);
     }
 
@@ -337,13 +339,16 @@ class Uploader {
 ///  CORE
 ///////////////////////////////
 
-    _uploadBulkStep() {
-        if (this._bi >= 0) {
-            const updateUI = () => {}; //demo
+    _uploadBulkStep(withoutSkip=true) {
+        if (withoutSkip && this._bi >= 0) { //if routine was skipped, do not initiate checking
+            const updateUI = this.updateBulkElementProcessing.bind(this, this._bi);
+            const updateUIFinish = this.updateBulkElementFinished.bind(this, this._bi);
+            const updateUIError = this.updateBulkElementError.bind(this, this._bi);
 
             const routine = this._joblist[this._bi]?.checkRoutine;
             if (routine) {
                 const tstamp = Date.now(),
+                    timeout = this.jobTimeout,
                     id = setInterval(async () => {
                         const response = await fetch(UI.form.getAttribute("action"), {
                             method: "POST",
@@ -357,40 +362,49 @@ class Uploader {
                                 fileName: routine.fileName
                             })
                         });
-                        const data = await response.json();
+                        let data = await response.json();
 
-                        if (!Array.isArray(data) || data.length < 1) {
-                            //todo error
-                            updateUI("Failed to upload file: please, try again.");
+                        if (data.status !== "success" || typeof data.payload !== "object") {
+                            updateUIError("Failed to upload file: please, try again.");
                             clearInterval(id);
                             return;
                         }
+
+                        data = data.payload;
+
+                        console.log("Check file status, ", data);
+                        //todo check whether necessary to inspect if multiple files had been uploaded - employ session id?
+                        // if (tstamp - new Date(data.tstamp).getTime() > timeout) {
+                        //     updateUIError("Failed to upload file: timed out. Please, try again.");
+                        //     clearInterval(id);
+                        //     return;
+                        // }
 
                         switch (data["session"]) {
                             case "uploaded":
                                 break;
                             case "converting":
-                                updateUI("The file is being converted to a pyramidal tiff.");
+                                updateUI("The file is being converted to a pyramidal tiff");
                                 break;
                             case "processing":
-                                updateUI("The file is being processed.");
+                                updateUI("The file is being processed");
                                 break;
                             case "finished":
-                                updateUI("The file has been successfully uploaded and processed.");
+                                updateUIFinish("The file has been successfully uploaded and processed.");
                                 clearInterval(id);
                                 return;
                             default:
-                                updateUI("Unknown error. Please, try again.");
+                                updateUIError("Unknown error. Please, try again.");
                                 console.error("Invalid server response", data);
                                 clearInterval(id);
                                 return;
                         }
-                        console.log(data);
 
-                        if (Date.now() - tstamp > 3600000) {
+                        if (Date.now() - tstamp > timeout) {
+                            updateUIError("Failed to upload file: timed out. The file might've been uploaded correctly or something went wrong.");
                             clearInterval(id);
                         }
-                    }, 5000);
+                        }, this.jobCheckRoutinePeriod);
             }
         }
 
@@ -420,7 +434,7 @@ class Uploader {
         if (executor?.handler.apply(this)) {
             return this._uploadStep();
         }
-        return this._uploadBulkStep();
+        return this._uploadBulkStep(false);
     }
 
     startBulkUpload(bulkJobList) {
@@ -454,15 +468,37 @@ class Uploader {
             //copy main element and perform file exists check that skips the bulk job if
             const copy = this.copyBulkItem(targetElem);
             copy.handler = (success, json) => {
-                const continues = !success || json?.payload !== true;
-                if (!continues) {
-                    json.status = "info";
-                    json.message = "Target skipped: the target already exists.";
-                    this.updateBulkElementError(this._bi, json.message); //todo just info
+                if (!success) {
+                    json.status = "error";
+                    json.message = "Target skipped: unknown error.";
+                    this.updateBulkElementError(this._bi, json.message);
+                    return false;
                 }
-                return continues;
+
+                const data = json.payload;
+                if (typeof data === "object") {
+                    switch (data["session"]) {
+                        case "finished":
+                            this.updateBulkElementFinished(this._bi);
+                            return false;
+                        case "uploaded":
+                        case "converting":
+                        case "processing":
+                            //todo not tested
+                            if (Date.now() - new Date(data.tstamp).getTime() < this.jobTimeout) { //do not overwrite if still within timeout
+                                this.updateBulkElementProcessing(this._bi, "File is still being processed");
+                                return false;
+                            }
+                            return true;
+                        default:
+                            return true;
+                    }
+                }
+                return false;
             };
-            bulk.jobList.unshift(this.formSubmit.bind(this, "checkFileExists", copy));
+
+            //todo maybe only always overwrite if timed out...
+            bulk.jobList.unshift(this.formSubmit.bind(this, "checkFileStatus", copy));
 
             this.createBulkProgressElement(targetElem.fileInfo?.name || "Item " + (i+1), i, bulk);
 

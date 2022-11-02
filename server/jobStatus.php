@@ -12,9 +12,9 @@ require_once "config.php";
 global $database_file;
 $sql = new Sessions($database_file);
 
-$file = $argv[0];
-$session_id = $argv[1];
-$status = $argv[2];
+$file = $argv[1];
+$session_id = $argv[2];
+$status = $argv[3];
 $sql->setProgress($file, $session_id, $status);
 
 $result = $sql->getProgress($file, $session_id);
