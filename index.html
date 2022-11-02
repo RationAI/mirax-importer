@@ -17,6 +17,11 @@
 
 <div id="import">
 
+  <p>Select folder with .mrxs files and upload it here. You will not see files in the file browser, just upload the root folder.
+  By clicking on 'Upload' you start uploading the files and processing them. This can be done repeatedly to retry with failed files,
+  it is a good idea to wait for the current session to finish though before doing so. By selecting 'Monitor' the provided files
+  will be only checked for presence and progress/status.</p>
+
   <div class="p-2">
 
     <label for="file-drag-drop" class="drop-container">
@@ -27,12 +32,15 @@
   </div>
   <br>
   <p>
-    <button id="start-upload" class="btn btn-primary"><i class="fa fa-upload"></i> Upload</button> &nbsp;
+    <button id="start-upload" class="btn btn-primary"><i class="fa fa-upload"></i> Upload</button> &nbsp;&nbsp;
+    <button id="start-monitor" class="btn btn-primary"><i class="fa fa-upload"></i> Monitor</button> &emsp; &emsp;
+
     <button id="remove-upload" class="btn btn-primary"><i class="fa fa-upload"></i> Delete all uploaded</button> &nbsp;
 
   </p>
 </div>
 
+<div id="progress-error" class="m-3"></div>
 <div id="progress">
 
 

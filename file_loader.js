@@ -64,6 +64,9 @@ const UI = {
     get submitButton() {
         return document.getElementById("start-upload");
     },
+    get monitorButton() {
+        return document.getElementById("start-monitor");
+    },
     get form() {
         return document.getElementById("uploader");
     },
@@ -92,7 +95,7 @@ const UI = {
         return document.getElementById("progress");
     },
     showError(title, ...args) {
-        console.error(title, ...args);
+        document.getElementById("progress-error").innerHTML = `<div class="error-container">${title}</div>`;
     }
 }
 
@@ -118,11 +121,15 @@ class Uploader {
 
 
         $(UI.submitButton).on("click", () => self.start());
+        $(UI.monitorButton).on("click", () => self.start({monitorOnly: true}));
 
         //todo remove, for debug reasons
-        $("#remove-upload").on("click", () => self.customRequest(
-            () => self.formSubmit("clean", {handler: ()=>{}}, false))
-        );
+        $("#remove-upload").on("click", () => {
+            if (confirm("Really delete all uploaded data on the server? Present for testing purposes only.")) {
+                self.customRequest(
+                    () => self.formSubmit("clean", {handler: ()=>{}}, false));
+            }
+        });
         $(UI.form).ajaxForm({
             beforeSubmit: () => self._onBeforeSubmit(),
             uploadProgress: (e, p, t, pp) => self._onUploadProgress(e, p, t, pp),
@@ -155,16 +162,27 @@ class Uploader {
         this.setFormHandlers(undefined);
     }
 
-    start() {
+    /**
+     *
+     * @param opts options
+     * @param {boolean} opts.monitorOnly if true, only monitoring takes place without trying to do actual uploading and processing
+     */
+    start(opts={}) {
         if (this.running) {
             UI.showError("Upload is running!");
             return;
         }
         this.running = true;
 
-        $(UI.progress).html("<p>Note: uploading does not check for script finish time: submitted for processing means the job has been initiated and will eventually (tens of minutes) finish.</p>" +
-            "<p>Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab <b>opened and focused</b> in a separate browser window.</p>");
-        this.startUploading();
+        opts.monitorOnly = opts.monitorOnly || false;
+
+        if (opts.monitorOnly) {
+            $(UI.progress).html("<p>This is only a monitoring process. It is safe to close the window anytime.</p>");
+        } else {
+            $(UI.progress).html("<p>Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab <b>opened and focused</b> in a separate browser window.</p>");
+        }
+
+        this.startUploading(opts.monitorOnly);
         UI.visibleUploadPanel = false;
     }
 
@@ -177,8 +195,8 @@ class Uploader {
         if (error) {
             UI.showError(error);
         }
-        //todo cleanup
-        UI.visibleUploadPanel = true;
+        //todo do not show probably, force refresh
+        //UI.visibleUploadPanel = true;
     }
 
     customRequest(job) {
@@ -437,7 +455,7 @@ class Uploader {
         return this._uploadBulkStep(false);
     }
 
-    startBulkUpload(bulkJobList) {
+    startBulkUpload(bulkJobList, monitorOnly) {
         this._joblist = [];
 
         for (let i = 0; i < bulkJobList.length; i++) {
@@ -462,7 +480,9 @@ class Uploader {
                     targetElem = elem;
                 }
                 elem.index = j;
-                bulk.jobList.push(this.formSubmit.bind(this, "uploadFile", elem));
+                if (!monitorOnly) {
+                    bulk.jobList.push(this.formSubmit.bind(this, "uploadFile", elem));
+                }
             }
 
             //copy main element and perform file exists check that skips the bulk job if
@@ -502,13 +522,15 @@ class Uploader {
 
             this.createBulkProgressElement(targetElem.fileInfo?.name || "Item " + (i+1), i, bulk);
 
-            //bulk upload finished, now perform some processing
-            const copy2 = this.copyBulkItem(targetElem);
-            copy2.handler = () => {
-                this.updateBulkElementProcessing(this._bi);
-                return true;
+            if (!monitorOnly) {
+                //bulk upload finished, now perform some processing
+                const copy2 = this.copyBulkItem(targetElem);
+                copy2.handler = () => {
+                    this.updateBulkElementProcessing(this._bi);
+                    return true;
+                }
+                bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", copy2, false));
             }
-            bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", copy2, false));
 
             bulk.checkRoutine = {
                 requestId: targetElem.requestId,
@@ -522,7 +544,7 @@ class Uploader {
         this._uploadBulkStep();
     }
 
-    startUploading() {
+    startUploading(monitorOnly) {
         const fileList = UI.uploadFileList,
             iterator = [],
             hierarchy = {};
@@ -575,6 +597,6 @@ class Uploader {
                 parseErrors: parseErrors
             });
         }
-        this.startBulkUpload(bulkList);
+        this.startBulkUpload(bulkList, monitorOnly);
     }
 }
