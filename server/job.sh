@@ -16,18 +16,12 @@ TARGET_TIFF="${SOURCE_FILE}.tiff"
 echo "$3:$4 converting tiff..."
 
 vips tiffsave $SOURCE_FILE $TARGET_TIFF --tile --pyramid --compression=jpeg --Q=80 --tile-width 512 --tile-height 512 --bigtiff
+RESULT=$?
 
+# then, get ready for analysis
+./jobStatus.php $SOURCE_FILE $3 "ready"
 
-# then, run a neural network job
-./jobStatus.php $SOURCE_FILE $3 "processing"
-echo "$3:$4 running inference..."
-
-sleep 10
-
-# finally, log this job as finished, php runs update on database logs
-./jobStatus.php $SOURCE_FILE $3 "finished"
-
-if [ $? -eq 0 ]
+if [ $RESULT -eq 0 ]
 then
   echo "$3:$4 DONE"
   exit 0

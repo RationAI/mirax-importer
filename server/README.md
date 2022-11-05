@@ -5,8 +5,8 @@ Edit ``index.php`` and define desired constants so that the
 system works as intended and stores logs and files to 
 desired folders.
 
-Modify ``job.sh`` to perform custom stuff with the uploaded data.
-
+Modify ``job.sh`` to perform custom stuff with the uploaded data immediately.
+Modify ``analysis_job.sh`` to perform custom stuff with the uploaded data on request.
 
 The trickiest part is the server setup so that all rights and configuration limits
 are set up right, namely

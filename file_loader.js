@@ -48,15 +48,6 @@ function upload_iterator(infoNode, uploader, errorHandler) {
 
 
 
-
-
-
-
-
-
-
-
-
 const UI = {
     set visibleUploadPanel(value) {
         document.getElementById("import").style.display = value ? 'block' : 'none';
@@ -110,7 +101,7 @@ class Uploader {
         const self = this;
         this.running = false;
         this.jobTimeout = 3600000;
-        this.jobCheckRoutinePeriod = 30000;
+        this.jobCheckRoutinePeriod = 4000; //30000;
 
         window.onbeforeunload = () => {
             return self.running ? "Files are still uploading. Are you sure?" : null;
@@ -181,6 +172,8 @@ class Uploader {
         } else {
             $(UI.progress).html("<p>Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab <b>opened and focused</b> in a separate browser window.</p>");
         }
+        //todo remove?
+        this.monitorOnly = opts.monitorOnly;
 
         this.startUploading(opts.monitorOnly);
         UI.visibleUploadPanel = false;
@@ -197,6 +190,39 @@ class Uploader {
         }
         //todo do not show probably, force refresh
         //UI.visibleUploadPanel = true;
+
+        const self = this;
+
+        $("#analysis").css('display', 'block');
+        $("#send-one-file-analysis").on('click', function () {
+            if (self._analysisRun) {
+                $("#analysis-message").removeClass("error-container").html("Still processing please wait...");
+            }
+
+            self._analysisRun = true;
+            fetch('server/analysis.php', {
+                method: "POST",
+                mode: 'cors',
+                cache: 'no-cache',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                body: JSON.stringify({
+                    request: $("#request-analysis").val(),
+                    ajax: true
+                })
+            }).then(response => response.json()).then(data => {
+                console.log('Analysis', data);
+                $("#analysis-message").removeClass("error-container").html(data.payload);
+                self._analysisRun = false;
+            }).catch(e => {
+                console.log('Analysis Error', e);
+                $("#analysis-message").addClass("error-container").html(e.payload || e);
+                self._analysisRun = false;
+            });
+        });
     }
 
     customRequest(job) {
@@ -324,21 +350,21 @@ class Uploader {
         <span class='border rounded d-inline-block' style="width: calc(100% - 60px);"><span class="bar" id="bar1"></span></span></span>`);
     }
 
-    updateBulkElementProcessing(index, customMessage="Submitted for processing") {
+    updateBulkElementProcessing(index, customMessage="Currently processing", ellipsis=true) {
         $(`#bulk-element-${index}`).html(`
           <div class="Label mt-2 px-2 py-1">
             <span>${customMessage}</span>
-            <span class="AnimatedEllipsis"></span>
+            ${ellipsis ? '<span class="AnimatedEllipsis"></span>' : ''}
         </div>
         `);
     }
 
-    updateBulkElementFinished(index) {
+    updateBulkElementFinished(index, message=undefined) {
         //todo check mark
         $(`#bulk-element-${index}`).html(`
           <div class="Label mt-2 px-2 py-1" 
           style="background-color: var(--color-bg-success) !important; border-color: var(--color-border-success)">
-           <span class="material-icons" style="font-size: 9px">done</span> <span>Done</span>
+           <span class="material-icons" style="font-size: 9px">done</span> <span>${message ? message : 'Done'}</span>
         </div>`);
     }
 
@@ -357,8 +383,68 @@ class Uploader {
 ///  CORE
 ///////////////////////////////
 
-    _uploadBulkStep(withoutSkip=true) {
-        if (withoutSkip && this._bi >= 0) { //if routine was skipped, do not initiate checking
+    _monitoring = async (id, routine, tstamp, timeout, isMonitoringOnly, updateUI, updateUIFinish, updateUIError) => {
+        const response = await fetch(UI.form.getAttribute("action"), {
+            method: "POST",
+            headers: {
+                "Content-Type":"application/json",
+            },
+            body: JSON.stringify({
+                command: "checkFileStatus",
+                requestId: routine.requestId,
+                relativePath: routine.relativePath,
+                fileName: routine.fileName
+            })
+        });
+        let data = await response.json();
+
+        if (data.status !== "success" || typeof data.payload !== "object") {
+            updateUIError("Failed to upload file: please, try again.");
+            clearInterval(id);
+            return;
+        }
+
+        data = data.payload;
+
+        console.log("Check file status, ", data);
+        //todo check whether necessary to inspect if multiple files had been uploaded - employ session id?
+        // if (tstamp - new Date(data.tstamp).getTime() > timeout) {
+        //     updateUIError("Failed to upload file: timed out. Please, try again.");
+        //     clearInterval(id);
+        //     return;
+        // }
+
+        switch (data["session"]) {
+            case "uploaded":
+                break;
+            case "converting":
+                updateUI("The file is being converted to a pyramidal tiff");
+                break;
+            case "ready":
+                updateUI("File is uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Request ID: <b>" + data["request_id"] + "</b>. Do not close this window to observe the process.", false);
+                break;
+            case "processing":
+                updateUI();
+                break;
+            case "finished":
+                updateUIFinish("The file has been successfully uploaded and processed.");
+                clearInterval(id);
+                return;
+            default:
+                updateUIError("Unknown error. Please, try again.");
+                console.error("Invalid server response", data);
+                clearInterval(id);
+                return;
+        }
+
+        if (Date.now() - tstamp > timeout) {
+            updateUIError("Failed to upload file: timed out. The file might've been uploaded correctly or something went wrong.");
+            clearInterval(id);
+        }
+    }
+
+    _uploadBulkStep() {
+        if (this._bi >= 0) { //if routine was skipped, do not initiate checking
             const updateUI = this.updateBulkElementProcessing.bind(this, this._bi);
             const updateUIFinish = this.updateBulkElementFinished.bind(this, this._bi);
             const updateUIError = this.updateBulkElementError.bind(this, this._bi);
@@ -367,62 +453,20 @@ class Uploader {
             if (routine) {
                 const tstamp = Date.now(),
                     timeout = this.jobTimeout,
-                    id = setInterval(async () => {
-                        const response = await fetch(UI.form.getAttribute("action"), {
-                            method: "POST",
-                            headers: {
-                                "Content-Type":"application/json",
-                            },
-                            body: JSON.stringify({
-                                command: "checkFileStatus",
-                                requestId: routine.requestId,
-                                relativePath: routine.relativePath,
-                                fileName: routine.fileName
-                            })
-                        });
-                        let data = await response.json();
+                    self = this,
+                    isMonitoringOnly = this.monitorOnly,
+                    id = setInterval(() => {
+                        self._monitoring(
+                              id, routine, tstamp, timeout, isMonitoringOnly,
+                            updateUI, updateUIFinish, updateUIError
+                        );
+                    }, this.jobCheckRoutinePeriod);
 
-                        if (data.status !== "success" || typeof data.payload !== "object") {
-                            updateUIError("Failed to upload file: please, try again.");
-                            clearInterval(id);
-                            return;
-                        }
-
-                        data = data.payload;
-
-                        console.log("Check file status, ", data);
-                        //todo check whether necessary to inspect if multiple files had been uploaded - employ session id?
-                        // if (tstamp - new Date(data.tstamp).getTime() > timeout) {
-                        //     updateUIError("Failed to upload file: timed out. Please, try again.");
-                        //     clearInterval(id);
-                        //     return;
-                        // }
-
-                        switch (data["session"]) {
-                            case "uploaded":
-                                break;
-                            case "converting":
-                                updateUI("The file is being converted to a pyramidal tiff");
-                                break;
-                            case "processing":
-                                updateUI("The file is being processed");
-                                break;
-                            case "finished":
-                                updateUIFinish("The file has been successfully uploaded and processed.");
-                                clearInterval(id);
-                                return;
-                            default:
-                                updateUIError("Unknown error. Please, try again.");
-                                console.error("Invalid server response", data);
-                                clearInterval(id);
-                                return;
-                        }
-
-                        if (Date.now() - tstamp > timeout) {
-                            updateUIError("Failed to upload file: timed out. The file might've been uploaded correctly or something went wrong.");
-                            clearInterval(id);
-                        }
-                        }, this.jobCheckRoutinePeriod);
+                //run immediately
+                self._monitoring(
+                    id, routine, tstamp, timeout, isMonitoringOnly,
+                    updateUI, updateUIFinish, updateUIError
+                );
             }
         }
 
@@ -496,20 +540,23 @@ class Uploader {
                 }
 
                 const data = json.payload;
-                if (typeof data === "object") {
+                if (data && typeof data === "object") {
                     switch (data["session"]) {
                         case "finished":
                             this.updateBulkElementFinished(this._bi);
                             return false;
                         case "uploaded":
                         case "converting":
+                        case "ready":
+                            //if (!data.tstamp_delta || data.tstamp_delta < this.jobTimeout) { //do not overwrite if still within timeout
+                            const msg = this.monitorOnly ? "File is " : "Uploading not initiated: file has been";
+                            this.updateBulkElementProcessing(this._bi,msg + " uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Request ID: <b>" + data["request_id"] + "</b>", false);
+                            return false;
+                        // }
+                        // return true;
                         case "processing":
-                            //todo not tested
-                            if (Date.now() - new Date(data.tstamp).getTime() < this.jobTimeout) { //do not overwrite if still within timeout
-                                this.updateBulkElementProcessing(this._bi, "File is still being processed");
-                                return false;
-                            }
-                            return true;
+                            this.updateBulkElementProcessing(this._bi);
+                            return false;
                         default:
                             return true;
                     }
@@ -517,7 +564,7 @@ class Uploader {
                 return false;
             };
 
-            //todo maybe only always overwrite if timed out...
+
             bulk.jobList.unshift(this.formSubmit.bind(this, "checkFileStatus", copy));
 
             this.createBulkProgressElement(targetElem.fileInfo?.name || "Item " + (i+1), i, bulk);
@@ -526,7 +573,7 @@ class Uploader {
                 //bulk upload finished, now perform some processing
                 const copy2 = this.copyBulkItem(targetElem);
                 copy2.handler = () => {
-                    this.updateBulkElementProcessing(this._bi);
+                    this.updateBulkElementProcessing(this._bi, "Finishing the upload process"); //not online - message changed
                     return true;
                 }
                 bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", copy2, false));

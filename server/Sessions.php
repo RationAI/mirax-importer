@@ -3,12 +3,33 @@
 class Sessions extends SQLite3
 {
     function __construct($session_store) {
+
         $this->open($session_store, SQLITE3_OPEN_CREATE | SQLITE3_OPEN_READWRITE);
+        $this->exec('PRAGMA journal_mode = wal;');
+        $this->busyTimeout(5000);
         $this->ensure($this->exec("CREATE TABLE IF NOT EXISTS logs (id integer PRIMARY KEY AUTOINCREMENT, file varchar(511), request_id varchar(255), tstamp DATETIME, session TEXT);"));
         //$this->ensure($this->exec("CREATE TABLE IF NOT EXISTS sessions (id integer PRIMARY KEY AUTO_INCREMENT, request_id varchar(255), session TEXT);"));
+
+        $this->ensure($this->exec("CREATE TABLE IF NOT EXISTS lock (id integer UNIQUE);")); //todo temporary
     }
 
-    private function ensure($result) {
+    //todo temporary
+    public function lock() {
+        $stmt = $this->ensure($this->prepare("INSERT INTO lock VALUES (1)"));
+        return $this->ensure($stmt->execute());
+    }
+
+    public function unlock() {
+        $stmt = $this->ensure($this->prepare("DELETE FROM lock WHERE id=1"));
+        return $this->ensure($stmt->execute());
+    }
+
+    public function locked() {
+        $stmt = $this->ensure($this->prepare("SELECT * FROM lock WHERE id=1"));
+        return $this->ensure($stmt->execute())->fetchArray(SQLITE3_ASSOC);
+    }
+
+    public function ensure($result) {
         if (!$result) {
             //$this->reporter($this->lastErrorMsg());
             throw new Exception($this->lastErrorMsg());

@@ -46,7 +46,14 @@
 
 </div>
 
-<pre id="code" class="code"></pre>
+<div id="analysis" class="mt-3" style="display: none;">
+  <br><br>
+  <div id="analysis-message" class="m-3"></div>
+  <input type="text" class="form-control" id="request-analysis" name="request" placeholder="Request ID common to all files to process."/>
+  <input type="submit" id="send-one-file-analysis" name="command" value="Run analysis" class="form-control"/>
+</div>
+
+<pre id="code" class="code mt-3"></pre>
 
 
 <form action="server/index.php" style="visibility: hidden; opacity: 0" method="post" id="uploader" enctype="multipart/form-data">

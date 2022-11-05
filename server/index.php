@@ -1,5 +1,5 @@
 <?php
-
+//time values should be in UTC!
 require_once "config.php";
 
 ///////////////////////////////
@@ -46,7 +46,13 @@ function get_file_status($file_real_path, $request_id, $db=null) {
         $db = get_db_instance();
     }
     $result = $db->getProgress($file_real_path, $request_id);
-    return $result->fetchArray(SQLITE3_ASSOC);
+    $data = $result->fetchArray(SQLITE3_ASSOC);
+
+    //should be in UTC
+    if (isset($data["tstamp"])) {
+        $data["tstamp_delta"] = time() - strtotime($data["tstamp"]);
+    }
+    return $data;
 }
 
 function erase_dirs() {
@@ -110,11 +116,7 @@ function exception_handler(Throwable $exception) {
 set_exception_handler('exception_handler');
 
 function set_error($title, ...$args) { //todo
-    echo "ERROR: $title  " . implode(" ", $args)  . "<br>";
-}
-
-function show_log(...$args) { //todo
-    echo implode(" ", $args)  . "<br>";
+    error($title, $args);
 }
 
 function send_response($payload=null) {
@@ -168,11 +170,6 @@ switch ($_POST["command"]) {
                 "errorCode" => $file_data["errors"]
             ));
         }
-
-        $target_directory = target_upload_dir($target_path);
-        if (!register_file_upload("$target_directory/$name", $request_id)) {
-            error("File uploaded but the system failed to create an upload record: '$target_path/$name'!");
-        }
         send_response();
     }
 
@@ -213,7 +210,13 @@ switch ($_POST["command"]) {
         if (!$request_id || !$target_path || !$name) {
             error("Cannot process files - fileUploadBulkFinished failed: missing metadata.");
         }
-        $result = file_uploaded(clean_path($name), target_upload_dir($target_path), $request_id, 0); //todo session id
+
+        $target_directory = target_upload_dir($target_path);
+        $name = clean_path($name);
+        if (!register_file_upload("$target_directory/$name", $request_id)) { //todo define file composition on one place only
+            error("File uploaded but the system failed to create an upload record: '$target_path/$name'!");
+        }
+        $result = file_uploaded($name, $target_directory, $request_id, 0); //todo session id
         send_response(array("Processing initiated for $name", $result));
     }
 

@@ -6,6 +6,13 @@ if (count($argv) < 3) {
     exit;
 }
 
+
+function process($file, $request_id, $session_id) {
+    global $upload_root, $server_root;
+    //executes shell script as a background task, copies to output to the log file and stores it
+    return shell_exec("$server_root/analysis_job.sh 2>&1 '$file' '$request_id' '$session_id' | tee -a '$upload_root/analysis_log.txt'");
+}
+
 require_once "Sessions.php";
 require_once "config.php";
 
