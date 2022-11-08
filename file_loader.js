@@ -102,6 +102,8 @@ class Uploader {
         this.running = false;
         this.jobTimeout = 3600000;
         this.jobCheckRoutinePeriod = 4000; //30000;
+        this.chunkUploadSizeLimit = 26214400;
+        this.chunkUploadParallel = 20;
 
         window.onbeforeunload = () => {
             return self.running ? "Files are still uploading. Are you sure?" : null;
@@ -121,12 +123,66 @@ class Uploader {
                     () => self.formSubmit("clean", {handler: ()=>{}}, false));
             }
         });
+
+        // this.chunkLoader = new MyChunkUploader();
+        // this.chunkLoader.options.max_chunk_size = this.chunkUploadSizeLimit;
+        // this.chunkLoader.options.raw_post = false; //if true POST not populated and the script fails
+        // this.chunkLoader.options.max_parallel_chunks=this.chunkUploadParallel;
+        // this.chunkLoader.options.send_interval=1000;
+        // this.chunkLoader.on_ready=function(response){
+        //     //todo better arguments policy - remove unused first two?
+        //     const percent = Math.round((response.sent / response.total) * 100);
+        //     self._onUploadProgress(response.total, percent);
+        // };
+        //
+        // this.chunkLoader.on_done=function(){
+        //     const willContinue = self._onUploadFinish(true, {
+        //         status: "success"
+        //     });
+        //     if (willContinue) {
+        //         self._uploadStep();
+        //     } else {
+        //         self._uploadBulkStep();
+        //     }
+        // };
+        //
+        // this.chunkLoader.on_error=function(object,err_type){
+        //     console.error("Chunk error!", err_type);
+        //     const willContinue = self._onUploadFinish(false, {
+        //         status: "error",
+        //         message: "Unknown error.",
+        //     });
+        //     if (willContinue) {
+        //         self._uploadStep();
+        //     } else {
+        //         self._uploadBulkStep();
+        //     }
+        // };
+        //
+        // this.chunkLoader.on_abort=function(object){
+        //     console.warn("Aborting...");
+        //     const willContinue = self._onUploadFinish(false, {
+        //         status: "error",
+        //         message: "Unknown error.",
+        //     });
+        //     if (willContinue) {
+        //         self._uploadStep();
+        //     } else {
+        //         self._uploadBulkStep();
+        //     }
+        // };
+        //
+        // this.chunkLoader.on_upload_progress=function (progress) {
+        //     //self._onUploadProgress(progress.total, progress.sent / progress.total);
+        // }
+
+
+
         $(UI.form).ajaxForm({
-            beforeSubmit: () => self._onBeforeSubmit(),
-            uploadProgress: (e, p, t, pp) => self._onUploadProgress(e, p, t, pp),
+            beforeSubmit: (arr, form, options) => self._onBeforeSubmit(arr, form, options),
+            uploadProgress: (e, p, t, pp) => self._onUploadProgress(t, pp),
             success: () => self._onUploadSuccess(),
             complete: (xhr) => {
-                console.log(xhr);
                 let success = false, data;
                 try {
                     data = JSON.parse(xhr.responseText);
@@ -143,9 +199,9 @@ class Uploader {
 
                 const willContinue = self._onUploadFinish(success, data);
                 if (willContinue) {
-                    this._uploadStep();
+                    self._uploadStep();
                 } else {
-                    this._uploadBulkStep();
+                    self._uploadBulkStep();
                 }
             }
         });
@@ -168,9 +224,9 @@ class Uploader {
         opts.monitorOnly = opts.monitorOnly || false;
 
         if (opts.monitorOnly) {
-            $(UI.progress).html("<p>This is only a monitoring process. It is safe to close the window anytime.</p>");
+            $(UI.progress).html("<h2 class=\"f2-light\">Uploading and Monitoring</h2><p>This is only a monitoring process. It is safe to close the window anytime.</p>");
         } else {
-            $(UI.progress).html("<p>Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab <b>opened and focused</b> in a separate browser window.</p>");
+            $(UI.progress).html("<h2 class=\"f2-light\">Uploading and Monitoring</h2><p>Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab <b>opened and focused</b> in a separate browser window.</p>");
         }
         //todo remove?
         this.monitorOnly = opts.monitorOnly;
@@ -234,14 +290,6 @@ class Uploader {
         this._uploadBulkStep();
     }
 
-    // customRequest() {
-    //     //todo separate form with custom inputs
-    //     if (this.running) {
-    //         UI.showError("Upload is running!");
-    //         return;
-    //     }
-    //     this.formSubmit.bind(this, "checkFileExists", copy)
-    // }
 
 ///////////////////////////////
 ///  Form Helpers
@@ -253,16 +301,69 @@ class Uploader {
      * @param onFinish perform action when query finished - returns true if the bulk job should continue
      */
     setFormHandlers(bulkItem, onFinish=(success, json)=>{}) {
+
         if (typeof bulkItem !== "object") {
+            //not an upload job but different request
             this._onBeforeSubmit = () => {};
-            this._onUploadProgress = (event, position, total, percentComplete) => {};
+            this._onUploadProgress = (total, percentComplete) => {};
             this._onUploadSuccess = () => {};
             this._onUploadFinish = onFinish.bind(this);
         } else {
-            this._onBeforeSubmit = () => {
+            this._onBeforeSubmit = (arr, form, options) => {
+                const file = arr.find(x => x.name === "uploadedFile")?.value;
+                const relativePath = arr.find(x => x.name === "relativePath")?.value;
+
+                if (!file) throw "Invalid data! No file data provided!";
+                if (!relativePath) throw `Invalid data! Relative path not computed for file ${file.name}!`;
+
                 this.updateBulkElementDownloading(this._bi, bulkItem, this._i-1);
+
+                if (file.size < 0) { //todo <= this.chunkUploadSizeLimit
+                    return true;
+                }
+
+                const self = this;
+                const upload = new tus.Upload(file, {
+                    endpoint: "server/tus_upload.php",
+                    retryDelays: [0, 3000, 5000, 10000, 20000],
+                    metadata: {
+                        name: file.name,
+                        type: file.type,
+                        fileName: file.name,
+                        relativePath: relativePath,
+                    },
+                    onError: (e) => {
+                        console.error("Chunk error!", e);
+                        const willContinue = self._onUploadFinish(false, {
+                            status: "error",
+                            message: "Unknown error.",
+                        });
+                        if (willContinue) self._uploadStep();
+                        else self._uploadBulkStep();
+                    },
+                    onProgress: (bytesUploaded, bytesTotal) => {
+                        let percentage = Math.round(bytesUploaded / bytesTotal * 100);
+                        self._onUploadProgress(bytesTotal, percentage);
+                    },
+                    onSuccess: () => {
+                        console.log("Download %s from %s", upload.file.name);
+                        const willContinue = self._onUploadFinish(false, {
+                            status: "error",
+                            message: "Unknown error.",
+                        });
+                        if (willContinue) self._uploadStep();
+                        else self._uploadBulkStep();
+                    }
+                });
+                upload.start();
+
+                // this.chunkLoader.upload_chunked('server/chunk_upload.php', file, undefined, {
+                //     relativePath: relativePath,
+                //     fileName: file.name,
+                // });
+                return false; //do not proceed using the default form upload
             };
-            this._onUploadProgress = (event, position, total, percentComplete) => {
+            this._onUploadProgress = (total, percentComplete) => {
                 const percentVal = percentComplete + '%';
                 $('#bar1').width(percentVal);
                 $('#percent1').html(percentVal);
@@ -311,7 +412,6 @@ class Uploader {
         submit.value = command;
         UI.formSubmitButton.click();
     }
-
 
     //html
     createBulkProgressElement(title, index, bulk) {

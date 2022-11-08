@@ -6,6 +6,9 @@
   <script type="text/javascript" src="jquery.form.min.js"></script>
   <script type="text/javascript" src="utils.js"></script>
   <script type="text/javascript" src="file_loader.js"></script>
+  <script type="text/javascript" src="file_chunk_uploader.js"></script>
+  <script type="text/javascript" src="tus.min.js"></script>
+
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
   <link rel="stylesheet" href="primer_css.css">
@@ -48,7 +51,12 @@
 
 <div id="analysis" class="mt-3" style="display: none;">
   <br><br>
-  <div id="analysis-message" class="m-3"></div>
+  <h2 class="f2-light">Analysis </h2>
+  <p>You can run analysis here: only one job session can be running at the time. Use <i>request id</i> for file with the same request id to be analysed one by one.
+  The progress is shown by the running monitoring above. Note though, that the analysis might run also for files not displayed here, if there are some non-processed
+    files with the same request id.
+  </p>
+  <div id="analysis-message" class="m-3 border-0 rounded-2"></div>
   <input type="text" class="form-control" id="request-analysis" name="request" placeholder="Request ID common to all files to process."/>
   <input type="submit" id="send-one-file-analysis" name="command" value="Run analysis" class="form-control"/>
 </div>

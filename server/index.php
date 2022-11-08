@@ -6,16 +6,6 @@ require_once "config.php";
 ///  UTILS
 ///////////////////////////////
 
-function clean_path($path) {
-    $path = trim($path);
-    $path = trim($path, '\\/');
-    $path = str_replace(array('../', '..\\'), '', $path);
-    if ($path == '..') {
-        $path = '';
-    }
-    return str_replace('\\', '/', $path);
-}
-
 function file_uploaded($filename, $filepath, $request_id, $session_id) {
     global $log_file, $server_root;
     //executes shell script as a background task, copies to output to the log file and stores it
@@ -66,41 +56,6 @@ function erase_dirs() {
     }
 }
 
-function upload_file($temp, $target_file_name, $relative_directory) {
-    $target_directory = target_upload_dir($relative_directory);
-
-    global $upload_root;
-    if (!is_writable($upload_root)) error("Missing permissions for the root directory!");
-
-    $dir_err = make_dir($target_directory);
-    if ($dir_err != "") error("Target directory '$target_directory' is not create-able! <code>$dir_err</code>");
-    if (!is_writable($target_directory)) error("Missing permissions for the target upload directory!");
-
-    $target = "$target_directory/$target_file_name";
-
-    if (move_uploaded_file($temp, $target)) {
-        @chmod($target, 0640);
-        return true;
-    }
-    return false;
-}
-
-function make_dir($path) {
-    if (is_dir($path)) return "";
-
-    function get_err() {
-        $err = error_get_last();
-        if (is_array($err)) {
-            return $err["message"] ?? implode(" | ", $err);
-        }
-        return "Unknown error: mkdir.";
-    }
-
-    if (!@mkdir($path, 0777, true)) return get_err();
-    if (!@chmod($path, 0777)) return get_err();
-    return "";
-}
-
 ///////////////////////////////
 ///  CORE
 ///////////////////////////////
@@ -133,18 +88,6 @@ function error($title, $payload=null) {
     exit();
 }
 
-function target_upload_dir($relative_path, $processed=false) {
-    global $upload_root;
-    if ($processed) {
-        return $relative_path; //already processed, return as is
-    }
-    return "/" . clean_path("$upload_root/$relative_path");
-}
-
-function target_upload_path($filename, $relative_path, $path_processed=false) {
-    return target_upload_dir($relative_path, $path_processed) . "/" . clean_path($filename);
-}
-
 if (!isset($_POST['command'])) {
     error("Invalid command: no-op.");
 }
@@ -165,7 +108,17 @@ switch ($_POST["command"]) {
         }
 
         $name = clean_path($file_data["name"]);
-        if (!upload_file($file_data["tmp_name"], $name, $target_path)) {
+        $target_path = target_upload_dir($target_path);
+        $error_handler = function ($title) {
+            echo json_encode((object)array(
+                "status" => "error",
+                "message" => $title,
+                "payload" => "File failed to upload: incorrect paths or permissions!",
+            ));
+            exit();
+        };
+
+        if (!upload_file($file_data["tmp_name"], $name, $target_path, $error_handler)) {
             error("File failed to upload '$target_path/$name'!", array(
                 "errorCode" => $file_data["errors"]
             ));
