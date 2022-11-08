@@ -124,60 +124,6 @@ class Uploader {
             }
         });
 
-        // this.chunkLoader = new MyChunkUploader();
-        // this.chunkLoader.options.max_chunk_size = this.chunkUploadSizeLimit;
-        // this.chunkLoader.options.raw_post = false; //if true POST not populated and the script fails
-        // this.chunkLoader.options.max_parallel_chunks=this.chunkUploadParallel;
-        // this.chunkLoader.options.send_interval=1000;
-        // this.chunkLoader.on_ready=function(response){
-        //     //todo better arguments policy - remove unused first two?
-        //     const percent = Math.round((response.sent / response.total) * 100);
-        //     self._onUploadProgress(response.total, percent);
-        // };
-        //
-        // this.chunkLoader.on_done=function(){
-        //     const willContinue = self._onUploadFinish(true, {
-        //         status: "success"
-        //     });
-        //     if (willContinue) {
-        //         self._uploadStep();
-        //     } else {
-        //         self._uploadBulkStep();
-        //     }
-        // };
-        //
-        // this.chunkLoader.on_error=function(object,err_type){
-        //     console.error("Chunk error!", err_type);
-        //     const willContinue = self._onUploadFinish(false, {
-        //         status: "error",
-        //         message: "Unknown error.",
-        //     });
-        //     if (willContinue) {
-        //         self._uploadStep();
-        //     } else {
-        //         self._uploadBulkStep();
-        //     }
-        // };
-        //
-        // this.chunkLoader.on_abort=function(object){
-        //     console.warn("Aborting...");
-        //     const willContinue = self._onUploadFinish(false, {
-        //         status: "error",
-        //         message: "Unknown error.",
-        //     });
-        //     if (willContinue) {
-        //         self._uploadStep();
-        //     } else {
-        //         self._uploadBulkStep();
-        //     }
-        // };
-        //
-        // this.chunkLoader.on_upload_progress=function (progress) {
-        //     //self._onUploadProgress(progress.total, progress.sent / progress.total);
-        // }
-
-
-
         $(UI.form).ajaxForm({
             beforeSubmit: (arr, form, options) => self._onBeforeSubmit(arr, form, options),
             uploadProgress: (e, p, t, pp) => self._onUploadProgress(t, pp),
@@ -357,10 +303,6 @@ class Uploader {
                 });
                 upload.start();
 
-                // this.chunkLoader.upload_chunked('server/chunk_upload.php', file, undefined, {
-                //     relativePath: relativePath,
-                //     fileName: file.name,
-                // });
                 return false; //do not proceed using the default form upload
             };
             this._onUploadProgress = (total, percentComplete) => {
