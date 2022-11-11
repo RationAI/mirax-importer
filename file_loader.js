@@ -264,14 +264,16 @@ class Uploader {
 
                 this.updateBulkElementDownloading(this._bi, bulkItem, this._i-1);
 
-                if (file.size < 0) { //todo <= this.chunkUploadSizeLimit
+                return true;
+
+                if (file.size < this.chunkUploadSizeLimit) {
                     return true;
                 }
-
                 const self = this;
                 const upload = new tus.Upload(file, {
-                    endpoint: "server/tus_upload.php",
+                    endpoint: "server/tus/",
                     retryDelays: [0, 3000, 5000, 10000, 20000],
+                    chunkSize: this.chunkUploadSizeLimit,
                     metadata: {
                         name: file.name,
                         type: file.type,
@@ -301,6 +303,18 @@ class Uploader {
                         else self._uploadBulkStep();
                     }
                 });
+
+                //todo what about resumed stuff?
+                // // Check if there are any previous uploads to continue.
+                // upload.findPreviousUploads().then(function (previousUploads) {
+                //     // Found previous uploads so we select the first one.
+                //     if (previousUploads.length) {
+                //         upload.resumeFromPreviousUpload(previousUploads[0])
+                //     }
+                //
+                //     // Start the upload
+                //     upload.start()
+                // })
                 upload.start();
 
                 return false; //do not proceed using the default form upload
@@ -472,9 +486,13 @@ class Uploader {
                 updateUIFinish("The file has been successfully uploaded and processed.");
                 clearInterval(id);
                 return;
+            case "processing-failed":
+                updateUIError("The processing of this file failed.");
+                clearInterval(id);
+                return;
             default:
                 updateUIError("Unknown error. Please, try again.");
-                console.error("Invalid server response", data);
+                console.error(`Invalid server response <code>Unknown file status ${data['session']}</code>`, data);
                 clearInterval(id);
                 return;
         }
@@ -589,6 +607,7 @@ class Uploader {
                             return false;
                         case "uploaded":
                         case "converting":
+                        case "processing-failed":
                         case "ready":
                             //if (!data.tstamp_delta || data.tstamp_delta < this.jobTimeout) { //do not overwrite if still within timeout
                             const msg = this.monitorOnly ? "File is " : "Uploading not initiated: file has been";

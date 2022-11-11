@@ -11,7 +11,7 @@ echo "$2:$3 START PROCESS"
 # $2 - request id - session number in which the job runs, unique each run (the same for all sessions within given request)
 # $3 - session id - session number in which the job runs, unique each run (the same for each script run in a session)
 
-#nn ANALYSIS here
+snakemake target_vis --config slide_fp $SOURCE_FILE
 
 RESULT=$?
 
@@ -22,6 +22,7 @@ then
   echo "$2:$3 DONE"
   exit 0
 else
+  ./jobStatus.php $SOURCE_FILE $2 "processing-failed"
   echo "$2:$3 FAILED"
   exit 42
 fi

@@ -35,7 +35,9 @@ try {
     $db->lock();
     output("Locking database...");
 
-    $stmt = $db->ensure($db->prepare("SELECT * FROM logs WHERE request_id = ? AND session = 'ready' ORDER BY tstamp DESC"));
+    //todo update also stuff that has status processing X days later
+
+    $stmt = $db->ensure($db->prepare("SELECT * FROM logs WHERE request_id = ? AND (session = 'ready' OR session = 'processing-failed') ORDER BY tstamp DESC"));
     $stmt->bindValue(1, $request_id, SQLITE3_TEXT);
     $result = $db->ensure($stmt->execute());
 

@@ -10,16 +10,6 @@ require_once "config.php";
 ///  UTILS
 ///////////////////////////////
 
-function clean_path($path) {
-    $path = trim($path);
-    $path = trim($path, '\\/');
-    $path = str_replace(array('../', '..\\'), '', $path);
-    if ($path == '..') {
-        $path = '';
-    }
-    return str_replace('\\', '/', $path);
-}
-
 function process($request_id, $session_id) {
     global $upload_root, $server_root;
     //executes shell script as a background task, copies to output to the log file and stores it
@@ -51,18 +41,6 @@ function set_error($title, ...$args) { //todo
     echo "<p>ERROR: $title  " . implode(" ", $args)  . "</p>";
 }
 
-
-function target_upload_dir($relative_path, $processed=false) {
-    global $upload_root;
-    if ($processed) {
-        return $relative_path; //already processed, return as is
-    }
-    return "/" . clean_path("$upload_root/$relative_path");
-}
-
-function target_upload_path($filename, $relative_path, $path_processed=false) {
-    return target_upload_dir($relative_path, $path_processed) . "/" . clean_path($filename);
-}
 
 global $outputs;
 $outputs = !isset($_POST['ajax']) || !boolval($_POST['ajax']);

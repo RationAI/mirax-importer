@@ -1,7 +1,7 @@
 <?php
 
-require("vendor/autoload.php");
-require_once "config.php";
+require("../vendor/autoload.php");
+require_once "../config.php";
 
 function set_error($title, ...$args) { //todo
     error($title, $args);
@@ -15,25 +15,25 @@ function error($title, $payload=null) {
     exit();
 }
 
-$tmp_dir = "$upload_root/temp";
+$tmp_dir = "$upload_root/temp/";
 $err = make_dir($tmp_dir);
 
 if ($err) {
     //todo dies with error
 }
 
-\TusPhp\Config::set('tus_config.php');
-$server   = new \TusPhp\Tus\Server('file');
 
+$server   = new \TusPhp\Tus\Server('file');
+$server->setUploadDir($tmp_dir);
 
 $server->event()->addListener('tus-server.upload.merged', function (\TusPhp\Events\TusEvent $event) {
-    $fileMeta = $event->getFile()->details();
-    $request  = $event->getRequest();
-    $response = $event->getResponse();
-
-    var_dump($fileMeta);
-    echo "<br><br>";
-    var_dump($response);
+//    $fileMeta = $event->getFile()->details();
+//    $request  = $event->getRequest();
+//    $response = $event->getResponse();
+//
+//    var_dump($fileMeta);
+//    echo "<br><br>";
+//    var_dump($response);
 
 
 //    $target_path = $_POST["relativePath"];
@@ -61,6 +61,8 @@ $server->event()->addListener('tus-server.upload.merged', function (\TusPhp\Even
 });
 
 $response = $server->serve();
+//var_dump($response);
+//return;
 $response->send();
 
 exit(0);
