@@ -102,7 +102,7 @@ if (strlen($_POST['request']) < 1) {
 }
 
 
-$stmt = $db->ensure($db->prepare("SELECT * FROM logs WHERE request_id = ? AND session = 'ready' ORDER BY tstamp DESC"));
+$stmt = $db->ensure($db->prepare("SELECT * FROM logs WHERE request_id = ? AND (session = 'ready' OR session = 'processing-failed') ORDER BY tstamp DESC"));
 $stmt->bindValue(1, $_POST['request'], SQLITE3_TEXT);
 $result = $db->ensure($stmt->execute());
 

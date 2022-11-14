@@ -100,8 +100,8 @@ class Uploader {
     constructor() {
         const self = this;
         this.running = false;
-        this.jobTimeout = 3600000;
-        this.jobCheckRoutinePeriod = 4000; //30000;
+        this.jobTimeout = 86400000; //one day
+        this.jobCheckRoutinePeriod = 5000; //5 secs per slide;
         this.chunkUploadSizeLimit = 26214400;
         this.chunkUploadParallel = 20;
 
@@ -219,6 +219,7 @@ class Uploader {
                 console.log('Analysis', data);
                 $("#analysis-message").removeClass("error-container").html(data.payload);
                 self._analysisRun = false;
+                self.monitorAll();
             }).catch(e => {
                 console.log('Analysis Error', e);
                 $("#analysis-message").addClass("error-container").html(e.payload || e);
@@ -266,58 +267,60 @@ class Uploader {
 
                 return true;
 
-                if (file.size < this.chunkUploadSizeLimit) {
-                    return true;
-                }
-                const self = this;
-                const upload = new tus.Upload(file, {
-                    endpoint: "server/tus/",
-                    retryDelays: [0, 3000, 5000, 10000, 20000],
-                    chunkSize: this.chunkUploadSizeLimit,
-                    metadata: {
-                        name: file.name,
-                        type: file.type,
-                        fileName: file.name,
-                        relativePath: relativePath,
-                    },
-                    onError: (e) => {
-                        console.error("Chunk error!", e);
-                        const willContinue = self._onUploadFinish(false, {
-                            status: "error",
-                            message: "Unknown error.",
-                        });
-                        if (willContinue) self._uploadStep();
-                        else self._uploadBulkStep();
-                    },
-                    onProgress: (bytesUploaded, bytesTotal) => {
-                        let percentage = Math.round(bytesUploaded / bytesTotal * 100);
-                        self._onUploadProgress(bytesTotal, percentage);
-                    },
-                    onSuccess: () => {
-                        console.log("Download %s from %s", upload.file.name);
-                        const willContinue = self._onUploadFinish(false, {
-                            status: "error",
-                            message: "Unknown error.",
-                        });
-                        if (willContinue) self._uploadStep();
-                        else self._uploadBulkStep();
-                    }
-                });
-
-                //todo what about resumed stuff?
-                // // Check if there are any previous uploads to continue.
-                // upload.findPreviousUploads().then(function (previousUploads) {
-                //     // Found previous uploads so we select the first one.
-                //     if (previousUploads.length) {
-                //         upload.resumeFromPreviousUpload(previousUploads[0])
-                //     }
+                // if (file.size < this.chunkUploadSizeLimit) {
+                //     return true;
+                // }
                 //
-                //     // Start the upload
-                //     upload.start()
-                // })
-                upload.start();
-
-                return false; //do not proceed using the default form upload
+                // //parallel? this.chunkUploadParallel
+                // const self = this;
+                // const upload = new tus.Upload(file, {
+                //     endpoint: "server/tus/",
+                //     retryDelays: [0, 3000, 5000, 10000, 20000],
+                //     chunkSize: this.chunkUploadSizeLimit,
+                //     metadata: {
+                //         name: file.name,
+                //         type: file.type,
+                //         fileName: file.name,
+                //         relativePath: relativePath,
+                //     },
+                //     onError: (e) => {
+                //         console.error("Chunk error!", e);
+                //         const willContinue = self._onUploadFinish(false, {
+                //             status: "error",
+                //             message: "Unknown error.",
+                //         });
+                //         if (willContinue) self._uploadStep();
+                //         else self._uploadBulkStep();
+                //     },
+                //     onProgress: (bytesUploaded, bytesTotal) => {
+                //         let percentage = Math.round(bytesUploaded / bytesTotal * 100);
+                //         self._onUploadProgress(bytesTotal, percentage);
+                //     },
+                //     onSuccess: () => {
+                //         console.log("Download %s from %s", upload.file.name);
+                //         const willContinue = self._onUploadFinish(false, {
+                //             status: "error",
+                //             message: "Unknown error.",
+                //         });
+                //         if (willContinue) self._uploadStep();
+                //         else self._uploadBulkStep();
+                //     }
+                // });
+                //
+                // //todo what about resumed stuff?
+                // // // Check if there are any previous uploads to continue.
+                // // upload.findPreviousUploads().then(function (previousUploads) {
+                // //     // Found previous uploads so we select the first one.
+                // //     if (previousUploads.length) {
+                // //         upload.resumeFromPreviousUpload(previousUploads[0])
+                // //     }
+                // //
+                // //     // Start the upload
+                // //     upload.start()
+                // // })
+                // upload.start();
+                //
+                // return false; //do not proceed using the default form upload
             };
             this._onUploadProgress = (total, percentComplete) => {
                 const percentVal = percentComplete + '%';
@@ -439,7 +442,7 @@ class Uploader {
 ///  CORE
 ///////////////////////////////
 
-    _monitoring = async (id, routine, tstamp, timeout, isMonitoringOnly, updateUI, updateUIFinish, updateUIError) => {
+    _monitoring = async (routine, tstamp, timeout, isMonitoringOnly, isProcessing, updateUI, updateUIFinish, updateUIError) => {
         const response = await fetch(UI.form.getAttribute("action"), {
             method: "POST",
             headers: {
@@ -452,17 +455,19 @@ class Uploader {
                 fileName: routine.fileName
             })
         });
-        let data = await response.json();
+        let data = await response.json(),
+            id = routine.intervalId;
 
         if (data.status !== "success" || typeof data.payload !== "object") {
             updateUIError("Failed to upload file: please, try again.");
             clearInterval(id);
+            delete routine.intervalId;
             return;
         }
 
         data = data.payload;
 
-        console.log("Check file status, ", data);
+        console.log("Check file: status", data["session"]);
         //todo check whether necessary to inspect if multiple files had been uploaded - employ session id?
         // if (tstamp - new Date(data.tstamp).getTime() > timeout) {
         //     updateUIError("Failed to upload file: timed out. Please, try again.");
@@ -485,49 +490,77 @@ class Uploader {
             case "finished":
                 updateUIFinish("The file has been successfully uploaded and processed.");
                 clearInterval(id);
+                delete routine.intervalId;
                 return;
             case "processing-failed":
-                updateUIError("The processing of this file failed.");
-                clearInterval(id);
+                updateUIError("The processing of this file failed." + (isProcessing ? " Note: analysis in progress..":""))
+                if (!isProcessing) {
+                    clearInterval(id);
+                    delete routine.intervalId;
+                }
                 return;
             default:
                 updateUIError("Unknown error. Please, try again.");
                 console.error(`Invalid server response <code>Unknown file status ${data['session']}</code>`, data);
                 clearInterval(id);
+                delete routine.intervalId;
                 return;
         }
 
         if (Date.now() - tstamp > timeout) {
-            updateUIError("Failed to upload file: timed out. The file might've been uploaded correctly or something went wrong.");
+            updateUI("Timed out. The session has been running too long.");
             clearInterval(id);
+            delete routine.intervalId;
+        }
+    }
+
+    monitorBulk(bulkIndex, forProcessing) {
+        const routine = this._joblist[bulkIndex]?.checkRoutine;
+
+        if (routine) {
+            this.monitor(routine, bulkIndex, forProcessing);
+        }
+    }
+
+    monitor(object, htmlListIndex, forProcessing) {
+        if (object.intervalId) {
+            return; //running
+        }
+
+        const updateUI = this.updateBulkElementProcessing.bind(this, htmlListIndex);
+        const updateUIFinish = this.updateBulkElementFinished.bind(this, htmlListIndex);
+        const updateUIError = this.updateBulkElementError.bind(this, htmlListIndex);
+
+        const tstamp = Date.now(),
+            timeout = this.jobTimeout,
+            self = this,
+            isMonitoringOnly = this.monitorOnly,
+            periodTimeout = this._joblist?.length > 0  //scale with job count
+                ? this._joblist.length * this.jobCheckRoutinePeriod : this.jobCheckRoutinePeriod;
+
+        object.intervalId = setInterval(() => {
+            self._monitoring(
+                object, tstamp, timeout, isMonitoringOnly, forProcessing,
+                updateUI, updateUIFinish, updateUIError
+            );
+        }, periodTimeout);
+
+        //run immediately
+        self._monitoring(
+            object, tstamp, timeout, isMonitoringOnly, forProcessing,
+            updateUI, updateUIFinish, updateUIError
+        );
+    }
+
+    monitorAll(processing=true) {
+        for (let i = 0; i < this._joblist.length; i++) {
+            this.monitorBulk(i, processing);
         }
     }
 
     _uploadBulkStep() {
         if (this._bi >= 0) { //if routine was skipped, do not initiate checking
-            const updateUI = this.updateBulkElementProcessing.bind(this, this._bi);
-            const updateUIFinish = this.updateBulkElementFinished.bind(this, this._bi);
-            const updateUIError = this.updateBulkElementError.bind(this, this._bi);
-
-            const routine = this._joblist[this._bi]?.checkRoutine;
-            if (routine) {
-                const tstamp = Date.now(),
-                    timeout = this.jobTimeout,
-                    self = this,
-                    isMonitoringOnly = this.monitorOnly,
-                    id = setInterval(() => {
-                        self._monitoring(
-                              id, routine, tstamp, timeout, isMonitoringOnly,
-                            updateUI, updateUIFinish, updateUIError
-                        );
-                    }, this.jobCheckRoutinePeriod);
-
-                //run immediately
-                self._monitoring(
-                    id, routine, tstamp, timeout, isMonitoringOnly,
-                    updateUI, updateUIFinish, updateUIError
-                );
-            }
+            this.monitorBulk(this._bi, false);
         }
 
         if (this._bi >= this._joblist.length - 1) {

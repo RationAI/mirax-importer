@@ -6,10 +6,17 @@ require_once "config.php";
 ///  UTILS
 ///////////////////////////////
 
-function file_uploaded($filename, $filepath, $request_id, $session_id) {
+function file_uploaded($filename, $directory, $request_id, $session_id) {
     global $log_file, $server_root;
+
+    //make sure .skip file exists, the $request_id folder contains folders with files
+    $parent_dir = dirname($directory);
+    if (!file_exists("$parent_dir/.skip")) {
+        file_put_contents("$parent_dir/.skip", '');
+    }
+
     //executes shell script as a background task, copies to output to the log file and stores it
-    return shell_exec("$server_root/job.sh 2>&1 '$filename' '$filepath' '$request_id' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
+    return shell_exec("$server_root/job.sh 2>&1 '$filename' '$directory' '$request_id' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
 }
 
 function get_db_instance() {

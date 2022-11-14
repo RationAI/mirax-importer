@@ -45,9 +45,10 @@ function target_upload_path($filename, $relative_path, $path_processed=false) {
     return target_upload_dir($relative_path, $path_processed) . "/" . clean_path($filename);
 }
 
-function upload_file($temp, $target_file_name, $relative_directory, callable $_die) {
-    ensure_accessible($target_file_name, $relative_directory, $_die);
-    $target = "$relative_directory/$target_file_name";
+function upload_file($temp, $target_file_name, $directory, callable $_die) {
+    ensure_accessible($target_file_name, $directory, $_die);
+    $target = "$directory/$target_file_name";
+
     if (move_uploaded_file($temp, $target)) {
         @chmod($target, 0640);
         return true;
@@ -55,9 +56,9 @@ function upload_file($temp, $target_file_name, $relative_directory, callable $_d
     return false;
 }
 
-function move_file($temp, $target_file_name, $relative_directory, callable $_die) {
-    ensure_accessible($target_file_name, $relative_directory, $_die);
-    $target = "$relative_directory/$target_file_name";
+function move_file($temp, $target_file_name, $directory, callable $_die) {
+    ensure_accessible($target_file_name, $directory, $_die);
+    $target = "$directory/$target_file_name";
     if (rename($temp, $target)) {
         @chmod($target, 0640);
         return true;
@@ -65,11 +66,11 @@ function move_file($temp, $target_file_name, $relative_directory, callable $_die
     return false;
 }
 
-function ensure_accessible($target_file_name, $relative_directory, callable $_die) {
+function ensure_accessible($target_file_name, $directory, callable $_die) {
     global $upload_root;
     if (!is_writable($upload_root)) $_die("Missing permissions for the root directory!");
 
-    $dir_err = make_dir($relative_directory);
-    if ($dir_err != "") $_die("Target directory '$relative_directory' is not create-able! <code>$dir_err</code>");
-    if (!is_writable($relative_directory)) $_die("Missing permissions for the target upload directory!");
+    $dir_err = make_dir($directory);
+    if ($dir_err != "") $_die("Target directory '$directory' is not create-able! <code>$dir_err</code>");
+    if (!is_writable($directory)) $_die("Missing permissions for the target upload directory!");
 }
