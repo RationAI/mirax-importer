@@ -643,11 +643,11 @@ class Uploader {
                         case "processing-failed":
                         case "ready":
                             //if (!data.tstamp_delta || data.tstamp_delta < this.jobTimeout) { //do not overwrite if still within timeout
-                            const msg = this.monitorOnly ? "File is " : "Uploading not initiated: file has been";
-                            this.updateBulkElementProcessing(this._bi,msg + " uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Request ID: <b>" + data["request_id"] + "</b>", false);
-                            return false;
-                        // }
-                        // return true;
+                                const msg = this.monitorOnly ? "File is " : "Uploading not initiated: file has been";
+                                this.updateBulkElementProcessing(this._bi,msg + " uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Request ID: <b>" + data["request_id"] + "</b>", false);
+                                return false;
+                            // }
+                            // return true;
                         case "processing":
                             this.updateBulkElementProcessing(this._bi);
                             return false;

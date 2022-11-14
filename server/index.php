@@ -11,8 +11,8 @@ function file_uploaded($filename, $directory, $request_id, $session_id) {
 
     //make sure .skip file exists, the $request_id folder contains folders with files
     $parent_dir = dirname($directory);
-    if (!file_exists("$parent_dir/.skip")) {
-        file_put_contents("$parent_dir/.skip", '');
+    if (!file_exists("$parent_dir/.pull")) {
+        file_put_contents("$parent_dir/.pull", 'tiff');
     }
 
     //executes shell script as a background task, copies to output to the log file and stores it
