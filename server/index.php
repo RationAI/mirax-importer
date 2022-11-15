@@ -176,7 +176,7 @@ switch ($_POST["command"]) {
         if (!register_file_upload("$target_directory/$name", $request_id)) { //todo define file composition on one place only
             error("File uploaded but the system failed to create an upload record: '$target_path/$name'!");
         }
-        $result = file_uploaded($name, $target_directory, $request_id, 0); //todo session id
+        $result = file_uploaded($name, $target_directory, $request_id, time()); //tstamp as session
         send_response(array("Processing initiated for $name", $result));
     }
 

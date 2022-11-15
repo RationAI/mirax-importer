@@ -18,7 +18,9 @@ function output($msg) {
 function process($file, $request_id, $session_id) {
     global $upload_root, $server_root;
     //executes shell script as a background task, copies to output to the log file and stores it
-    echo shell_exec("$server_root/analysis_job.sh 2>&1 '$file' '$request_id' '$session_id'");
+
+    //echo removed too many lines
+    shell_exec("$server_root/analysis_job.sh 2>&1 '$file' '$request_id' '$session_id'");
 }
 
 require_once "Sessions.php";
@@ -49,7 +51,7 @@ try {
     foreach ($out as $row) {
         try {
             output("File " . $row["file"]);
-            process($row["file"], $row["request_id"], 0);
+            process($row["file"], $row["request_id"], $session_id);
         } catch (Exception $e) {
             //todo better by e.g. setting file status to db?
             output("Processing failed for file " . $row["file"]);

@@ -154,7 +154,6 @@ EOF;
     print_response("Processing initiated for request ID " . $_POST['request']);
 }
 
-//todo check whether it has not ended by failure - possible?
 if (!$locked) {
     process($_POST['request'], time());
 }
