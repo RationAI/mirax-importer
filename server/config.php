@@ -4,6 +4,14 @@ $log_file = "$upload_root/log.txt";
 $database_file = "$upload_root/.db.sqlite";
 $server_root = "/mnt/data/visualization/importer/server"; //absolute position of core files wrt. index.php server
 
+/**
+ * Required software for server working with mirax files:
+ *  vips (conversion to tiff)
+ *  snakemake with histopipe (analysis)
+ *  php with sqlite3 (server + db)
+ *
+ *  todo: python, openslide... in future
+ */
 
 ////////////////////////////// functions
 

@@ -10,10 +10,11 @@ require_once "config.php";
 ///  UTILS
 ///////////////////////////////
 
-function process($request_id, $session_id) {
+function process($is_file, $request_id, $session_id) {
     global $upload_root, $server_root;
     //executes shell script as a background task, copies to output to the log file and stores it
-    return shell_exec("$server_root/analysis_job.php 2>&1 '$request_id' '$session_id' | tee -a '$upload_root/analysis_log.txt' 2>/dev/null >/dev/null &");
+    $is_file = $is_file ? "true" : "false";
+    return shell_exec("$server_root/analysis_job.php 2>&1 '$request_id' '$session_id' '$is_file' | tee -a '$upload_root/analysis_log.txt' 2>/dev/null >/dev/null &");
 }
 
 function get_db_instance() {
@@ -21,7 +22,6 @@ function get_db_instance() {
     global $database_file;
     return new Sessions($database_file);
 }
-
 
 ///////////////////////////////
 ///  CORE
@@ -92,43 +92,91 @@ if ($outputs) {
 EOF;
 }
 
-if (!isset($_POST['request'])) {
-    error("Invalid request ID: provided no value.");
-}
-
-$_POST['request'] = trim($_POST['request']);
-if (strlen($_POST['request']) < 1) {
-    error("Invalid request ID: provided no value.");
-}
-
-
-$stmt = $db->ensure($db->prepare("SELECT * FROM logs WHERE request_id = ? AND (session = 'ready' OR session = 'processing-failed') ORDER BY tstamp DESC"));
-$stmt->bindValue(1, $_POST['request'], SQLITE3_TEXT);
-$result = $db->ensure($stmt->execute());
-
 $out = array();
-while (($row = $result->fetchArray(SQLITE3_ASSOC))) {
-    $out[] = $row;
-}
+$is_file = false;
+$param = "";
+$will_process_arg = "";
+if (isset($_POST['request'])) {
+    $param = trim($_POST['request']);
+    if (strlen($param) < 1) {
+        error("Invalid request ID: provided no value.");
+    }
 
+    $stmt = $db->ensure($db->prepare("SELECT * FROM logs WHERE request_id = ? AND (session = 'ready' OR session = 'processing-failed') ORDER BY tstamp DESC"));
+    $stmt->bindValue(1, $param, SQLITE3_TEXT);
+    $result = $db->ensure($stmt->execute());
 
-$no_files = count($out) < 1;
-if ($outputs) {
-    if ($no_files) {
-        $locked = true;
+    if ($outputs) echo "Fetching request ID by <b>" . $param . "</b><br>";
+    while (($row = $result->fetchArray(SQLITE3_ASSOC))) {
+        $out[] = $row;
+    }
+    $will_process_arg = $param;
+
+} else if (isset($_POST['file'])) {
+    $param = trim($_POST['file']);
+    if (strlen($param) < 1) {
+        error("Invalid file: provided no value.");
+    }
+    $is_file = true;
+    $stmt = $db->ensure($db->prepare("SELECT * FROM logs WHERE file = ? AND (session = 'ready' OR session = 'processing-failed') ORDER BY tstamp DESC LIMIT 1"));
+    $stmt->bindValue(1, $param, SQLITE3_TEXT);
+    $result = $db->ensure($stmt->execute());
+
+    if ($outputs) echo "Fetching file by <b>" . $param . "</b><br>";
+    while (($row = $result->fetchArray(SQLITE3_ASSOC))) {
+        $out[] = $row;
+    }
+    $will_process_arg = $param;
+
+} else if (isset($_POST['fileList'])) {
+    $files = $_POST['fileList'];
+    if (is_string($files)) $file = json_decode($files);
+
+    foreach ($files as $file) {
+        $param = trim($file);
+        if (strlen($param) < 1) {
+            continue;
+        }
+        $is_file = true;
+        //todo might select wrong files
+        $stmt = $db->ensure($db->prepare("SELECT * FROM logs WHERE file LIKE ? AND (session = 'ready' OR session = 'processing-failed') ORDER BY tstamp DESC LIMIT 1"));
+        $stmt->bindValue(1, "%$param%", SQLITE3_TEXT);
+        $result = $db->ensure($stmt->execute());
         while (($row = $result->fetchArray(SQLITE3_ASSOC))) {
             $out[] = $row;
         }
     }
 
+    $param = "list " . implode(", ", $files);
+    if ($outputs) echo "Fetching file list by substring matching: <b>" . $param . "</b><br>";
+    $will_process_arg = array_map(function ($x) { return $x["file"]; }, $out);
+    $will_process_arg = implode("#", $will_process_arg);
+
+} else {
+    error("Invalid request ID or file ID: provided no value.");
+}
+
+//print DB contents
+//$stmt = $db->ensure($db->prepare("SELECT * FROM logs"));
+//$rr = $stmt->execute();
+//while (($row = $rr->fetchArray(SQLITE3_ASSOC))) {
+//    echo $row["file"] . " &emsp; " . $row["request_id"] . " &emsp; " . $row["session"] . "<br>";
+//}
+
+$no_files = count($out) < 1;
+if ($outputs) {
+    if ($no_files) {
+        $locked = true;
+    }
+
     if ($locked && $out) {
         if ($no_files) echo "<p>No files available for processing. Below you can find a list of files available for the given request ID.</p>";
         else echo "<p>Some analysis job is currently running. Below is a list of files for the provided request ID and their status:</p>";
-    } else {
+    } else if (!$locked) {
         echo "<p>The analysis has been initiated. These files will be processed.</p>";
     }
     if (count($out) < 1) {
-        $out[] = array("file" => "No files found.", "tstamp" => "-", "session" => "-");
+        $out[] = array("file" => "No unprocessed files found.", "tstamp" => "-", "session" => "-");
     }
 }
 
@@ -148,14 +196,16 @@ EOF;
     echo "<p>The online process can be observed interactively using the upload form 'Monitor' function.</p>";
 } else {
     if (count($out) < 1) {
-        print_response("No files available for request ID " . $_POST['request']);
+        print_response("No files available for " . ($is_file ? "file " : "request ID ") . $param);
         exit();
     }
-    print_response("Processing initiated for request ID " . $_POST['request']);
+    print_response("Processing initiated for " . ($is_file ? "file " : "request ID ") . $param);
 }
 
 if (!$locked) {
-    process($_POST['request'], time());
+    process($is_file, $will_process_arg, time());
+} else {
+    error("A different analysis is running at the time.");
 }
 
 

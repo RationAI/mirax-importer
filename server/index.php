@@ -177,7 +177,7 @@ switch ($_POST["command"]) {
             error("File uploaded but the system failed to create an upload record: '$target_path/$name'!");
         }
         $result = file_uploaded($name, $target_directory, $request_id, time()); //tstamp as session
-        send_response(array("Processing initiated for $name", $result));
+        send_response(array("Upload finished for $name", $result));
     }
 
     case "clean": {

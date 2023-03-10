@@ -18,6 +18,9 @@ echo "$3:$4 converting tiff..."
 vips tiffsave "${SOURCE_FILE}" "${TARGET_TIFF}" --tile --pyramid --compression=jpeg --Q=80 --tile-width 512 --tile-height 512 --bigtiff
 RESULT=$?
 
+#extract label image
+./mirax_extract_meta.py "${SOURCE_FILE}" "$2/m_label.png"
+
 # then, get ready for analysis
 ./jobStatus.php "${SOURCE_FILE}" $3 "ready"
 

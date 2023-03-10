@@ -179,6 +179,8 @@ class Uploader {
 
         this.startUploading(opts.monitorOnly);
         UI.visibleUploadPanel = false;
+
+        this._uploadedFileNames = [];
     }
 
     finish(error="") {
@@ -201,6 +203,9 @@ class Uploader {
                 $("#analysis-message").removeClass("error-container").html("Still processing please wait...");
             }
 
+            const caseId = $("#request-analysis").val();
+            console.log("Sending analysis request for case", caseId);
+
             self._analysisRun = true;
             fetch('server/analysis.php', {
                 method: "POST",
@@ -212,7 +217,7 @@ class Uploader {
                     'Access-Control-Allow-Origin': '*'
                 },
                 body: JSON.stringify({
-                    request: $("#request-analysis").val(),
+                    request: caseId,
                     ajax: true
                 })
             }).then(response => response.json()).then(data => {
@@ -226,6 +231,41 @@ class Uploader {
                 self._analysisRun = false;
             });
         });
+
+        const files = this._uploadedFileNames;
+        $("#send-all-analysis").on('click', function () {
+            if (self._analysisRun) {
+                $("#analysis-message").removeClass("error-container").html("Still processing please wait...");
+            }
+
+            console.log("Sending analysis request for file list", files);
+
+            self._analysisRun = true;
+            fetch('server/analysis.php', {
+                method: "POST",
+                mode: 'cors',
+                cache: 'no-cache',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                body: JSON.stringify({
+                    fileList: files,
+                    ajax: true
+                })
+            }).then(response => response.json()).then(data => {
+                console.log('Analysis', data);
+                $("#analysis-message").removeClass("error-container").html(data.payload);
+                self._analysisRun = false;
+                self.monitorAll();
+            }).catch(e => {
+                console.log('Analysis Error', e);
+                $("#analysis-message").addClass("error-container").html(e.payload || e);
+                self._analysisRun = false;
+            });
+        });
+        this._uploadedFileNames = [];
     }
 
     customRequest(job) {
@@ -658,7 +698,6 @@ class Uploader {
                 return false;
             };
 
-
             bulk.jobList.unshift(this.formSubmit.bind(this, "checkFileStatus", copy));
 
             this.createBulkProgressElement(targetElem.fileInfo?.name || "Item " + (i+1), i, bulk);
@@ -668,6 +707,7 @@ class Uploader {
                 const copy2 = this.copyBulkItem(targetElem);
                 copy2.handler = () => {
                     this.updateBulkElementProcessing(this._bi, "Finishing the upload process"); //not online - message changed
+                    this._uploadedFileNames.push(targetElem.fileName);
                     return true;
                 }
                 bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", copy2, false));

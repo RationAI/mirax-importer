@@ -1,4 +1,5 @@
 <?php
+//todo consider meta deletion on non-existing files...?
 
 class Sessions extends SQLite3
 {
