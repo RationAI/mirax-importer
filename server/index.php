@@ -1,12 +1,13 @@
 <?php
 //time values should be in UTC!
 require_once "config.php";
+require_once "functions.php";
 
 ///////////////////////////////
 ///  UTILS
 ///////////////////////////////
 
-function file_uploaded($filename, $directory, $request_id, $session_id) {
+function file_uploaded($filename, $directory, $biopsy, $year, $session_id) {
     global $log_file, $server_root;
 
     //make sure .skip file exists, the $request_id folder contains folders with files
@@ -16,38 +17,16 @@ function file_uploaded($filename, $directory, $request_id, $session_id) {
     }
 
     //executes shell script as a background task, copies to output to the log file and stores it
-    return shell_exec("$server_root/job.sh 2>&1 '$filename' '$directory' '$request_id' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
+    return shell_exec("$server_root/conversion_job.sh 2>&1 '$filename' '$directory' '$biopsy' '$year' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
 }
 
-function get_db_instance() {
-    require_once "Sessions.php";
-    global $database_file;
-    return new Sessions($database_file);
-}
 
-function register_file_upload($file_real_path, $request_id) {
-    try {
-        $sql = get_db_instance();
-        $sql->saveJobLog($file_real_path, $request_id, "uploaded");
-
-        $row = get_file_status($file_real_path, $request_id, $sql);
-        $data = $row["session"] ?? false;
-        return $data == "uploaded";
-    } catch (Exception $e) {
-        return false;
-    }
-}
-
-function get_file_status($file_real_path, $request_id, $db=null) {
-    if ($db == null) {
-        $db = get_db_instance();
-    }
-    $result = $db->getProgress($file_real_path, $request_id);
-    $data = $result->fetchArray(SQLITE3_ASSOC);
+function get_file_status($fname) {
+    $data = xo_get_file_by_name($fname);
 
     //should be in UTC
-    if (isset($data["tstamp"])) {
-        $data["tstamp_delta"] = time() - strtotime($data["tstamp"]);
+    if (isset($data["created"])) {
+        $data["created_delta"] = time() - strtotime($data["created"]);
     }
     return $data;
 }
@@ -99,6 +78,12 @@ if (!isset($_POST['command'])) {
     error("Invalid command: no-op.");
 }
 
+function get_upload_path($name, $year, $biopsy, $is_mirax) {
+    $name_only = pathinfo($name, PATHINFO_FILENAME);
+    $target_path = file_path_from_year_biopsy($name_only, $year, $biopsy, $is_mirax);
+    return target_upload_path($name, $target_path);
+}
+
 switch ($_POST["command"]) {
     case "uploadFile": {
         if (!isset($_FILES["uploadedFile"])) {
@@ -106,16 +91,19 @@ switch ($_POST["command"]) {
         }
 
         $file_data = $_FILES["uploadedFile"];
-        $request_id = $_POST["requestId"];
-        $target_path = $_POST["relativePath"];
+        $biopsy = $_POST["biopsy"];
+        $year = $_POST["year"];
         $metadata = $_POST["meta"];
 
-        if (!$request_id || !$file_data || !$target_path) {
+        if (!$biopsy || !$file_data || !$year) {
             error("Cannot upload files - upload failed: missing metadata.");
         }
 
         $name = clean_path($file_data["name"]);
-        $target_path = target_upload_dir($target_path);
+        $is_mirax = str_ends_with($name, ".mrxs");
+        $name_only = pathinfo($name, PATHINFO_FILENAME);
+
+        $target_path = target_upload_dir(file_path_from_year_biopsy($name_only, $year, $biopsy, $is_mirax));
         $error_handler = function ($title) {
             echo json_encode((object)array(
                 "status" => "error",
@@ -134,28 +122,26 @@ switch ($_POST["command"]) {
     }
 
     case "checkFileExists": {
-        $request_id = $_POST["requestId"];
-        $target_path = $_POST["relativePath"];
+        $biopsy = $_POST["biopsy"];
+        $year = $_POST["year"];
         $name = $_POST["fileName"];
-        if (!$request_id || !$target_path || !$name) {
+        if (!$biopsy || !$year || !$name) {
             error("Cannot verify file existence - execution failed: missing metadata.");
         }
-        send_response(file_exists(target_upload_path($name, $target_path)));
+        send_response(file_exists(get_upload_path($name, $year, $biopsy, true)));
     }
 
     case "checkFileStatus": {
-        $request_id = $_POST["requestId"];
-        $target_path = $_POST["relativePath"];
+        $biopsy = $_POST["biopsy"];
+        $year = $_POST["year"];
         $name = $_POST["fileName"];
-        if (!$request_id || !$target_path || !$name) {
+        if (!$biopsy || !$year || !$name) {
             error("Cannot verify file existence - execution failed: missing metadata.");
         }
-
-        $fp = target_upload_path($name, $target_path);
-        if (!file_exists($fp)) {
+        if (!file_exists(get_upload_path($name, $year, $biopsy, true))) {
             send_response(array());
         } else {
-            send_response(get_file_status(target_upload_path($name, $target_path), $request_id));
+            send_response(get_file_status(tiff_fname_from_mirax($name)));
         }
     }
 
@@ -164,19 +150,30 @@ switch ($_POST["command"]) {
     }
 
     case "fileUploadBulkFinished": {
-        $request_id = $_POST["requestId"];
-        $target_path = $_POST["relativePath"];
+        $biopsy = $_POST["biopsy"];
+        $year = $_POST["year"];
         $name = $_POST["fileName"];
-        if (!$request_id || !$target_path || !$name) {
+        if (!$biopsy || !$year || !$name) {
             error("Cannot process files - fileUploadBulkFinished failed: missing metadata.");
         }
 
-        $target_directory = target_upload_dir($target_path);
+        $biopsy = (int)$biopsy;
+        $year = clean_path($year);
         $name = clean_path($name);
-        if (!register_file_upload("$target_directory/$name", $request_id)) { //todo define file composition on one place only
-            error("File uploaded but the system failed to create an upload record: '$target_path/$name'!");
+        try {
+            //todo request_id not used check its use
+            xo_insert_or_get_file(tiff_fname_from_mirax($name), $biopsy, "uploaded", file_path_year($year), $biopsy);
+        } catch (Exception $e) {
+            error("File uploaded but the system failed to create an upload record: '$name'!");
         }
-        $result = file_uploaded($name, $target_directory, $request_id, time()); //tstamp as session
+        $name_only = pathinfo($name, PATHINFO_FILENAME);
+        $result = file_uploaded(
+            $name,
+            target_upload_dir(file_path_from_year_biopsy($name_only, $year, $biopsy, true)),
+            $biopsy,
+            $year,
+            time()
+        ); //tstamp as session
         send_response(array("Upload finished for $name", $result));
     }
 

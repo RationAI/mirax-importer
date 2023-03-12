@@ -5,7 +5,7 @@ Edit ``index.php`` and define desired constants so that the
 system works as intended and stores logs and files to 
 desired folders.
 
-Modify ``job.sh`` to perform custom stuff with the uploaded data immediately.
+Modify ``conversion_job.sh`` to perform custom stuff with the uploaded data immediately.
 Modify ``analysis_job.sh`` to perform custom stuff with the uploaded data on request.
 
 The trickiest part is the server setup so that all rights and configuration limits
@@ -22,3 +22,8 @@ are set up right, namely
  - setup your server so that the POST content size is not limited, or limited to
 the upload size
    - for example apache uses ``LimitRequestBody`` with default 1GB limit (as of `v2.4`)
+
+### Dependencies
+Requires ``vips`` and `PHP` accessible through linux shell `bash`.
+
+Metadata is handled by ``xo_db`` database interface available at the RationAI repo.

@@ -1,4 +1,0 @@
-RewriteEngine on
-#Header always set Access-Control-Allow-Methods "PATCH, PUT, OPTIONS, GET, POST, DELETE"
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^files/?(.*)?$ index.php?$1 [QSA,L]

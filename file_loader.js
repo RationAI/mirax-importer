@@ -9,38 +9,51 @@ function file_iterator_predicate(info) {
 /**
  * Iterator, call uploader for ANY file info you deem necessary
  */
-const regExp = /^((\w+)[-_](\w+)[-_](\w+).*)\..*$/;
-function upload_iterator(infoNode, uploader, errorHandler) {
-    //upload the mrxs folder
-
-    //file names: identifier(- / _)year(- / _)reqest_id(- / _)
-    const fileInfo = infoNode["."];
-    const match = regExp.exec(fileInfo.name);
+const regExp = /^(.*([0-9]{4})[_-]([0-9]+).*)\.mrxs$/;
+const fallBackRegExp = /^(.*)\.mrxs$/;
+function parseFileName(name) {
+    let match = regExp.exec(name);
     if (!Array.isArray(match)) {
-        errorHandler(`File '${fileInfo.name}' failed to upload: it does not match pattern [XXX]-[YEAR]-[ID]-...mrxs`);
+        match = fallBackRegExp.exec(name);
+        if (!Array.isArray(match)) {
+            return {};
+        }
+        return {
+            name: match[1]
+        };
+    } else {
+        return {
+            name: match[1],
+            year: match[2],
+            biopsy: match[3]
+        };
+    }
+}
+
+function upload_iterator(infoNode, uploader, errorHandler) {
+    const fileInfo = infoNode["."];
+
+    //get name without suffix, year and biopsy from the file [...].mrxs
+    let {name, year, biopsy} = parseFileName(fileInfo.name);
+    if (!name) {
+        errorHandler(`File '${fileInfo.name}' failed to upload: file does not match any pattern!`);
         return false;
     }
-    const name = match[1], request_id = match[3];
-
-    if (!request_id) {
-        errorHandler(`File '${fileInfo.name}' failed to upload: no request ID match pattern [XXX]-[YEAR]-[REQUEST ID]-...mrxs`);
-        return false;
-    }
-
-    const bin_root = infoNode[".."]?.[name];
-
-    if (!bin_root) {
+    fileInfo.isMrxs = true;
+    const binRoot = infoNode[".."]?.[name];
+    if (!binRoot) {
         errorHandler(`MRXS data folder missing! Searching for folder: ${name}`);
         return false;
     }
 
-    for (const bin in bin_root) {
-        const bin_file = bin_root[bin]?.["."];
-        if (bin_file) {
-            uploader(bin_file, request_id, `${request_id}/${name}/${name}`);
+    for (const bin in binRoot) {
+        const binFile = binRoot[bin]?.["."];
+        if (binFile) {
+            binFile.isMrxs = false;
+            uploader(binFile, year, biopsy);
         } // todo else fail?
     }
-    uploader(fileInfo, request_id, `${request_id}/${name}`);
+    uploader(fileInfo, year, biopsy);
 }
 
 
@@ -64,17 +77,20 @@ const UI = {
     get uploadFileList() {
         return document.getElementById("file-drag-drop").files
     },
-    get inputRequestId() {
-        return document.getElementById("request-id-uploader");
+    get inputBiopsy() {
+        return document.getElementById("biopsy-uploader");
     },
     get inputFileInfo() {
         return document.getElementById("file-uploader");
     },
-    get inputRelativePath() {
-        return document.getElementById("relative-path-uploader");
+    get inputYear() {
+        return document.getElementById("year-uploader");
     },
     get inputMetaField() {
         return document.getElementById("meta-uploader");
+    },
+    get inputChecksumField() {
+        return document.getElementById("checksum-uploader");
     },
     get inputFileName() {
         return document.getElementById("filename-uploader");
@@ -112,7 +128,6 @@ class Uploader {
             return self.running ? "Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab in a separate browser window." : null;
         };
 
-
         $(UI.submitButton).on("click", () => self.start());
         $(UI.monitorButton).on("click", () => self.start({monitorOnly: true}));
 
@@ -147,7 +162,7 @@ class Uploader {
                 if (willContinue) {
                     self._uploadStep();
                 } else {
-                    self._uploadBulkStep();
+                    self._uploadBulkStep(false);
                 }
             }
         });
@@ -290,7 +305,7 @@ class Uploader {
     setFormHandlers(bulkItem, onFinish=(success, json)=>{}) {
 
         if (typeof bulkItem !== "object") {
-            //not an upload job but different request
+            //not an upload job but different func to execute
             this._onBeforeSubmit = () => {};
             this._onUploadProgress = (total, percentComplete) => {};
             this._onUploadSuccess = () => {};
@@ -298,10 +313,10 @@ class Uploader {
         } else {
             this._onBeforeSubmit = (arr, form, options) => {
                 const file = arr.find(x => x.name === "uploadedFile")?.value;
-                const relativePath = arr.find(x => x.name === "relativePath")?.value;
+                const year = arr.find(x => x.name === "year")?.value;
 
                 if (!file) throw "Invalid data! No file data provided!";
-                if (!relativePath) throw `Invalid data! Relative path not computed for file ${file.name}!`;
+                if (!year) throw `Invalid data! Relative path not computed for file ${file.name}!`;
 
                 this.updateBulkElementDownloading(this._bi, bulkItem, this._i-1);
 
@@ -321,7 +336,7 @@ class Uploader {
                 //         name: file.name,
                 //         type: file.type,
                 //         fileName: file.name,
-                //         relativePath: relativePath,
+                //         year: year,
                 //     },
                 //     onError: (e) => {
                 //         console.error("Chunk error!", e);
@@ -372,7 +387,7 @@ class Uploader {
             };
             this._onUploadFinish = (success, json) => {
                 if (!success) {
-                    this.updateBulkElementError(this._bi, json.message);
+                    this.updateBulkElementError(this._bi, json.message, json.payload);
                 }
                 return success; //continue only if successful
             };
@@ -386,7 +401,8 @@ class Uploader {
             this.setFormHandlers(opts);
         }
 
-        UI.inputRequestId.value = opts.requestId || "";
+        UI.inputBiopsy.value = opts.biopsy || "";
+        UI.inputChecksumField.value = opts.checksum;
 
         if (opts.fileInfo) {
             if (withFileData) {
@@ -398,7 +414,7 @@ class Uploader {
         } else {
             UI.inputFileName.value = opts.fileName || "";
         }
-        UI.inputRelativePath.value = opts.relativePath || "";
+        UI.inputYear.value = opts.year || "";
         UI.inputMetaField.value = JSON.stringify({
             timeStamp: Date.now()
         });
@@ -416,14 +432,25 @@ class Uploader {
     createBulkProgressElement(title, index, bulk) {
         $(UI.progress).append(`<div class="py-2 px-4 m-2 rounded border pointer">
 <h3>${title}</h3>
-<div id="bulk-element-${index}" class="mt-1 mx-1"><span class="m-2">Waiting in queue</span></div>
+<div id="bulk-element-${index}" class="mt-1 mx-1">
+<span class="m-2">Waiting in queue</span>
+</div>
+<code id="bulk-checksum-${index}" class="my-2 pl-3 d-block">MD5 Checksum: ${bulk.checksum || "computing..."}</code>
 </div>`);
     }
 
-    updateBulkElementError(index, error) {
-        $(`#bulk-element-${index}`).html(`
-          <div class="error-container">${error}</div>
+    updateBulkElementChecksum(index, checksum) {
+        $(`#bulk-checksum-${index}`).html(`
+            MD5 Checksum: ${checksum || "computing..."}
         `);
+    }
+
+    updateBulkElementError(index, error, details="") {
+        details = details ? `<code>${details}</code>` : "";
+        $(`#bulk-element-${index}`).html(`
+          <div class="error-container">${error}${details}</div>
+        `);
+        this.updateBulkElementChecksum(index, "---");
     }
 
     updateBulkElementDownloading(index, bulkItem) {
@@ -470,8 +497,8 @@ class Uploader {
     copyBulkItem(item, withFileInfo = false) {
         return {
             fileInfo: withFileInfo && item.fileInfo,
-            requestId: item.requestId,
-            relativePath: item.relativePath,
+            biopsy: item.biopsy,
+            year: item.year,
             fileName: item.fileName,
             handler: undefined,
             index: item.index,
@@ -490,8 +517,8 @@ class Uploader {
             },
             body: JSON.stringify({
                 command: "checkFileStatus",
-                requestId: routine.requestId,
-                relativePath: routine.relativePath,
+                biopsy: routine.biopsy,
+                year: routine.year,
                 fileName: routine.fileName
             })
         });
@@ -499,7 +526,7 @@ class Uploader {
             id = routine.intervalId;
 
         if (data.status !== "success" || typeof data.payload !== "object") {
-            updateUIError("Failed to upload file: please, try again.");
+            updateUIError("Failed to upload file: please, try again.", data.message);
             clearInterval(id);
             delete routine.intervalId;
             return;
@@ -540,7 +567,7 @@ class Uploader {
                 }
                 return;
             default:
-                updateUIError("Unknown error. Please, try again.");
+                updateUIError("Unknown error. Please, try again.", data.message);
                 console.error(`Invalid server response <code>Unknown file status ${data['session']}</code>`, data);
                 clearInterval(id);
                 delete routine.intervalId;
@@ -598,8 +625,8 @@ class Uploader {
         }
     }
 
-    _uploadBulkStep() {
-        if (this._bi >= 0) { //if routine was skipped, do not initiate checking
+    _uploadBulkStep(monitor=true) {
+        if (this._bi >= 0 && monitor) { //if routine was skipped, do not initiate checking
             this.monitorBulk(this._bi, false);
         }
 
@@ -629,14 +656,18 @@ class Uploader {
         if (executor?.handler.apply(this)) {
             return this._uploadStep();
         }
-        return this._uploadBulkStep(false);
+        return this._uploadBulkStep();
     }
 
-    startBulkUpload(bulkJobList, monitorOnly) {
+    startBulkUpload() {
+        const {bulkList, monitorOnly} = this._sessionReady;
+        delete this._sessionReady;
+        $(UI.progress).html("");
+
         this._joblist = [];
 
-        for (let i = 0; i < bulkJobList.length; i++) {
-            const bulk = bulkJobList[i];
+        for (let i = 0; i < bulkList.length; i++) {
+            const bulk = bulkList[i];
             bulk.jobList = [];
 
             bulk.index = i;
@@ -663,6 +694,8 @@ class Uploader {
             }
 
             //copy main element and perform file exists check that skips the bulk job if
+
+            //todo copies change will not be reflected :/
             const copy = this.copyBulkItem(targetElem);
             copy.handler = (success, json) => {
                 if (!success) {
@@ -682,7 +715,7 @@ class Uploader {
                         case "converting":
                         case "processing-failed":
                         case "ready":
-                            //if (!data.tstamp_delta || data.tstamp_delta < this.jobTimeout) { //do not overwrite if still within timeout
+                            //if (!data.created_delta || data.created_delta < this.jobTimeout) { //do not overwrite if still within timeout
                                 const msg = this.monitorOnly ? "File is " : "Uploading not initiated: file has been";
                                 this.updateBulkElementProcessing(this._bi,msg + " uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Request ID: <b>" + data["request_id"] + "</b>", false);
                                 return false;
@@ -714,13 +747,13 @@ class Uploader {
             }
 
             bulk.checkRoutine = {
-                requestId: targetElem.requestId,
-                relativePath: targetElem.relativePath,
+                biopsy: targetElem.biopsy,
+                year: targetElem.year,
                 fileName: targetElem.fileName,
             };
         }
 
-        this._joblist = bulkJobList;
+        this._joblist = bulkList;
         this._bi = -1; //bulk steps increases by 1
         this._uploadBulkStep();
     }
@@ -758,11 +791,11 @@ class Uploader {
             const uploadBulk = [];
             const parseErrors = [];
 
-            upload_iterator(target, (fileInfo, requestId, relativePath) => {
+            upload_iterator(target, (fileInfo, year, biopsy) => {
                 uploadBulk.push({
                     fileInfo: fileInfo,
-                    requestId: requestId,
-                    relativePath: relativePath,
+                    biopsy: biopsy,
+                    year: year,
                     fileName: fileInfo.name,
                 });
             }, (error) => {
@@ -778,6 +811,72 @@ class Uploader {
                 parseErrors: parseErrors
             });
         }
-        this.startBulkUpload(bulkList, monitorOnly);
+
+        this._sessionReady = {bulkList, monitorOnly};
+        this.middleStepVerifyParsedFiles();
+    }
+
+    middleStepVerifyParsedFiles() {
+        const data = ["<h1 class='f2-light'>Verification Step</h1><p>Please verify that all file names are valid, i.e. year and biopsy numbers are recognized correctly and files are complete.</p><br>"], _this = this;
+
+        function printTitleMeta(item) {
+            return `&emsp;<span style="font-size: 12pt !important;">${item.year || '<span style="color: var(--color-text-danger)">unknown</span>'}  |  ${item.biopsy || '<span style="color: var(--color-text-danger)">unknown</span>'}</span>`;
+        }
+
+        function createCheckBulkNode(title, index, bulk, targetElem) {
+            if (bulk.parseErrors.length > 0) {
+                return `<div class="py-2 px-4 m-2 rounded border pointer"><h3>${title}  ${printTitleMeta(targetElem)}</h3><div 
+id="bulk-element-${index}" class="mt-1 mx-1"><div class="error-container">Invalid MRXS File! This file won't 
+be uploaded. Biopsy <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b><code>${bulk.parseErrors.join("<br>")}</code></div></div></div>`;
+            }
+
+            _this.computeBulkMD5(bulk);
+            return `<div class="py-2 px-4 m-2 rounded border pointer"><h3>${title}  ${printTitleMeta(targetElem)}</h3>
+<div id="bulk-element-${index}" class="mt-1 mx-1"><span class="m-2">File will be uploaded with <b>biopsy</b> number <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b></span></div>
+<code id="bulk-checksum-${index}" class="my-2 pl-3 d-block">MD5 Checksum: ${bulk.checksum || "computing..."}</code>
+</div>`;
+        }
+
+        const {bulkList} = this._sessionReady;
+        for (let i = 0; i < bulkList.length; i++) {
+            const bulk = bulkList[i];
+            bulk.index = i;
+            const targetElem = bulk.data.find(x => x.fileInfo.name.endsWith("mrxs"));
+
+            if (!targetElem.year || !targetElem.biopsy) bulk.parseErrors.push("Invalid Year or Biopsy number: this file won't be uploaded!");
+            data.push(createCheckBulkNode(targetElem.fileInfo?.name || "Item " + (i + 1), i, bulk, targetElem));
+        }
+        const btn = document.createElement("button");
+        btn.classList.add("btn");
+        btn.onclick = this.startBulkUpload.bind(this);
+        btn.innerText = "Start Uploading";
+        $(UI.progress).html(data.join(""));
+        UI.progress.appendChild(btn);
+    }
+
+    computeBulkMD5(bulk) {
+        const _this = this;
+        let calls = 1;
+        let chunks = [];
+        function finish(chunk) {
+            chunks.push(chunk)
+            if (calls > 0) {
+                calls--;
+                return;
+            }
+            bulk.checksum = CryptoJS.MD5(chunks.join("")).toString(CryptoJS.enc.Base64);
+            _this.updateBulkElementChecksum(bulk.index, bulk.checksum);
+        }
+
+        bulk.data.forEach(data => {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const binary = event.target.result;
+                data.checksum = CryptoJS.MD5(binary).toString(CryptoJS.enc.Base64);
+                finish(data.checksum);
+            };
+            reader.readAsBinaryString(data.fileInfo);
+        });
+        finish("");
     }
 }

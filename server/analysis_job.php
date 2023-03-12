@@ -1,6 +1,7 @@
 #!/usr/bin/env php
 <?php
 require_once "config.php";
+require_once "functions.php";
 
 if (count($argv) < 2) {
     throw new Exception("Incorrect use: not enough arguments. Requires 'request_id' and 'session_id'.");

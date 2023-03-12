@@ -3,7 +3,7 @@
 cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"  # cd current directory
 
 SOURCE_FILE=$1
-./jobStatus.php "${SOURCE_FILE}" $2 "processing"
+./update_event.php "${SOURCE_FILE}" $2 "processing"
 echo "$2:$3 START PROCESS"
 
 #parameters
@@ -20,11 +20,11 @@ cd ${c_w_d}
 if [ $RESULT -eq 0 ]
 then
   # finally, log this job as finished, php runs update on database logs
-  ./jobStatus.php "${SOURCE_FILE}" $2 "finished"
+  ./update_event.php "${SOURCE_FILE}" $2 "finished"
   echo "$2:$3 DONE"
   exit 0
 else
-  ./jobStatus.php "${SOURCE_FILE}" $2 "processing-failed"
+  ./update_event.php "${SOURCE_FILE}" $2 "processing-failed"
   echo "$2:$3 FAILED"
   exit 42
 fi
