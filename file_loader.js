@@ -92,6 +92,9 @@ const UI = {
     get inputChecksumField() {
         return document.getElementById("checksum-uploader");
     },
+    get inputMiraxFileName() {
+        return document.getElementById("mirax-filename-uploader");
+    },
     get inputFileName() {
         return document.getElementById("filename-uploader");
     },
@@ -402,7 +405,8 @@ class Uploader {
         }
 
         UI.inputBiopsy.value = opts.biopsy || "";
-        UI.inputChecksumField.value = opts.checksum;
+        UI.inputChecksumField.value = opts.checksum || "";
+        UI.inputMiraxFileName.value = opts.miraxFile || "";
 
         if (opts.fileInfo) {
             if (withFileData) {
@@ -534,7 +538,7 @@ class Uploader {
 
         data = data.payload;
 
-        console.log("Check file: status", data["session"]);
+        console.log("Check file: status", data["status"]);
         //todo check whether necessary to inspect if multiple files had been uploaded - employ session id?
         // if (tstamp - new Date(data.tstamp).getTime() > timeout) {
         //     updateUIError("Failed to upload file: timed out. Please, try again.");
@@ -542,14 +546,14 @@ class Uploader {
         //     return;
         // }
 
-        switch (data["session"]) {
+        switch (data["status"]) {
             case "uploaded":
                 break;
             case "converting":
                 updateUI("The file is being converted to a pyramidal tiff");
                 break;
             case "ready":
-                updateUI("File is uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Request ID: <b>" + data["request_id"] + "</b>. Do not close this window to observe the process.", false);
+                updateUI("File is uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Biopsy: <b>" + data["biopsy"] + "</b>. Do not close this window to observe the process.", false);
                 break;
             case "processing":
                 updateUI();
@@ -568,7 +572,7 @@ class Uploader {
                 return;
             default:
                 updateUIError("Unknown error. Please, try again.", data.message);
-                console.error(`Invalid server response <code>Unknown file status ${data['session']}</code>`, data);
+                console.error(`Invalid server response <code>Unknown file status ${data['status']}</code>`, data);
                 clearInterval(id);
                 delete routine.intervalId;
                 return;
@@ -672,8 +676,8 @@ class Uploader {
 
             bulk.index = i;
 
+            const targetElem = bulk.data.find(x => x.fileInfo.name.endsWith("mrxs"));
             if (bulk.parseErrors.length > 0) {
-                const targetElem = bulk.data.find(x => x.fileInfo.name.endsWith("mrxs"));
                 this.createBulkProgressElement(targetElem?.fileInfo?.name || "Item " + i, i, bulk);
                 this.updateBulkElementError(i, bulk.parseErrors.join("<br>"));
                 continue;
@@ -681,12 +685,9 @@ class Uploader {
 
             const bulkData = bulk.data;
 
-            let targetElem = null;
             for (let j = 0; j < bulkData.length; j++) {
                 const elem = bulkData[j];
-                if (elem.fileInfo.name.endsWith("mrxs")) {
-                    targetElem = elem;
-                }
+                elem.miraxFile = targetElem.fileInfo.name;
                 elem.index = j;
                 if (!monitorOnly) {
                     bulk.jobList.push(this.formSubmit.bind(this, "uploadFile", elem));
@@ -707,7 +708,7 @@ class Uploader {
 
                 const data = json.payload;
                 if (data && typeof data === "object") {
-                    switch (data["session"]) {
+                    switch (data["status"]) {
                         case "finished":
                             this.updateBulkElementFinished(this._bi);
                             return false;
@@ -716,8 +717,8 @@ class Uploader {
                         case "processing-failed":
                         case "ready":
                             //if (!data.created_delta || data.created_delta < this.jobTimeout) { //do not overwrite if still within timeout
-                                const msg = this.monitorOnly ? "File is " : "Uploading not initiated: file has been";
-                                this.updateBulkElementProcessing(this._bi,msg + " uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Request ID: <b>" + data["request_id"] + "</b>", false);
+                                const msg = this.monitorOnly ? "File is " : "Uploading not initiated: file is ";
+                                this.updateBulkElementProcessing(this._bi,msg + " already uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Biopsy: <b>" + data["biopsy"] + "</b>", false);
                                 return false;
                             // }
                             // return true;
@@ -782,7 +783,7 @@ class Uploader {
 
         if (iterator.length < 1) {
             console.error("Cannot upload files: no valid file");
-            this.finish("Failed to upload files: no valid files provided.");
+            this.finish("Failed to upload files: no valid files provided. Make sure you upload the correct folder with <i>.mrxs</i> file, not the child folder with the data files only.");
             return;
         }
 

@@ -27,7 +27,7 @@ RESULT=0
 #./mirax_extract_meta.py "$SOURCE_FILE" "$2/m_label.png"
 
 # then, get ready for analysis
-./update_event.php "$SOURCE_TIFF" $3 "ready"
+./update_event.php "$SOURCE_TIFF" "ready"
 
 if [ $RESULT -eq 0 ]
 then

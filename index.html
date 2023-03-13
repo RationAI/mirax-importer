@@ -50,11 +50,11 @@
   <h2 class="f2-light">Analysis </h2>
   <div id="analysis-message" class="m-3 border-0 rounded-2"></div>
   <br>
-  <p>You can run analysis here: only one job session can be running at the time. Use <i>request id</i> for file with the same request id to be analysed one by one.
+  <p>You can run analysis here: only one job session can be running at the time. Use <i>biopsy</i> for file with the same biopsy number to be analysed one by one.
   The progress is shown by the running monitoring above. Note though, that the analysis might run also for files not displayed here, if there are some non-processed
-    files with the same request id.
+    files with the same biopsy number.
   </p>
-  <input type="text" class="form-control" id="request-analysis" name="request" placeholder="Request ID common to all files to process."/>
+  <input type="text" class="form-control" id="request-analysis" name="request" placeholder="Biopsy common to all files to process."/>
   <input type="submit" id="send-one-file-analysis" name="command" value="Run analysis" class="form-control"/>
 
   <br><br>
@@ -70,6 +70,7 @@
   <input type="hidden" id="biopsy-uploader" name="biopsy"/>
   <input type="hidden" id="year-uploader" name="year"/>
   <input type="hidden" id="meta-uploader" name="meta"/>
+  <input type="hidden" id="mirax-filename-uploader" name="mirax-name"/>
   <input type="hidden" id="checksum-uploader" name="meta"/>
 
   <input type="hidden" id="filename-uploader" name="fileName"/>

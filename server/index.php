@@ -10,7 +10,7 @@ require_once "functions.php";
 function file_uploaded($filename, $directory, $biopsy, $year, $session_id) {
     global $log_file, $server_root;
 
-    //make sure .skip file exists, the $request_id folder contains folders with files
+    //make sure .skip file exists
     $parent_dir = dirname($directory);
     if (!file_exists("$parent_dir/.pull")) {
         file_put_contents("$parent_dir/.pull", 'tiff');
@@ -22,6 +22,8 @@ function file_uploaded($filename, $directory, $biopsy, $year, $session_id) {
 
 
 function get_file_status($fname) {
+    require_once XO_DB_ROOT . "include.php";
+
     $data = xo_get_file_by_name($fname);
 
     //should be in UTC
@@ -40,6 +42,8 @@ function erase_dirs() {
             $file->isDir() ?  rmdir($file) : unlink($file);
         }
     }
+    require_once XO_DB_ROOT . "include.php";
+    xo_files_erase();
 }
 
 ///////////////////////////////
@@ -51,7 +55,7 @@ if (!isset($_POST) || count($_POST) < 1) {
 }
 
 function exception_handler(Throwable $exception) {
-    set_error($exception->getMessage());
+    set_error("Unknown error occurred!", $exception->getMessage());
 }
 
 set_exception_handler('exception_handler');
@@ -91,6 +95,7 @@ switch ($_POST["command"]) {
         }
 
         $file_data = $_FILES["uploadedFile"];
+        $mirax_name = $_POST["mirax-name"];
         $biopsy = $_POST["biopsy"];
         $year = $_POST["year"];
         $metadata = $_POST["meta"];
@@ -101,9 +106,9 @@ switch ($_POST["command"]) {
 
         $name = clean_path($file_data["name"]);
         $is_mirax = str_ends_with($name, ".mrxs");
-        $name_only = pathinfo($name, PATHINFO_FILENAME);
+        $mirax_name = pathinfo($mirax_name, PATHINFO_FILENAME);
 
-        $target_path = target_upload_dir(file_path_from_year_biopsy($name_only, $year, $biopsy, $is_mirax));
+        $target_path = target_upload_dir(file_path_from_year_biopsy($mirax_name, $year, $biopsy, $is_mirax));
         $error_handler = function ($title) {
             echo json_encode((object)array(
                 "status" => "error",
@@ -114,8 +119,12 @@ switch ($_POST["command"]) {
         };
 
         if (!upload_file($file_data["tmp_name"], $name, $target_path, $error_handler)) {
+            $err = error_get_last();
+            if (is_array($err)) $err = $err["message"] ?? implode(" | ", $err);
+
             error("File failed to upload '$target_path/$name'!", array(
-                "errorCode" => $file_data["errors"]
+                "errorCode" => $file_data["error"],
+                "payload" => $err
             ));
         }
         send_response();
@@ -161,6 +170,7 @@ switch ($_POST["command"]) {
         $year = clean_path($year);
         $name = clean_path($name);
         try {
+            require_once XO_DB_ROOT . "include.php";
             //todo request_id not used check its use
             xo_insert_or_get_file(tiff_fname_from_mirax($name), $biopsy, "uploaded", file_path_year($year), $biopsy);
         } catch (Exception $e) {

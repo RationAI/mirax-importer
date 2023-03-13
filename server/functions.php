@@ -20,9 +20,9 @@ function file_path_year($year) {
 }
 
 function file_path_biopsy($biopsy) {
-    $pos = 2;
-    $prefix = substr($biopsy, 0, $pos+1);
-    $suffix = substr($biopsy, $pos+1);
+    $pos = 1; //first two letters prefix
+    $prefix = substr((string)$biopsy, 0, $pos+1);
+    $suffix = substr((string)$biopsy, $pos+1);
     return "$prefix/$suffix/";
 }
 
@@ -30,8 +30,8 @@ function file_path_from_year_biopsy($filename_no_suffix, $year, $biopsy, $is_mir
     $yp = file_path_year($year);
     $bp = file_path_biopsy($biopsy);
 
-    if ($is_mirax) return "$yp/$bp/$filename_no_suffix/";
-    else return "$yp/$bp/$filename_no_suffix/$filename_no_suffix/";
+    if ($is_mirax) return "$yp$bp$filename_no_suffix/";
+    else return "$yp$bp$filename_no_suffix/$filename_no_suffix/";
 }
 
 function clean_path($path) {
@@ -76,6 +76,10 @@ function upload_file($temp, $target_file_name, $directory, callable $_die) {
     ensure_accessible($target_file_name, $directory, $_die);
     $target = "$directory/$target_file_name";
 
+    //non-empty
+    if (mb_strlen($temp,"UTF-8") > 225) $_die("File name too big! $target_file_name!");
+    if (mb_strlen($target,"UTF-8") > 225) $_die("File name destination too big! $target!");
+
     if (move_uploaded_file($temp, $target)) {
         @chmod($target, 0640);
         return true;
@@ -95,7 +99,11 @@ function move_file($temp, $target_file_name, $directory, callable $_die) {
 
 function ensure_accessible($target_file_name, $directory, callable $_die) {
     global $upload_root;
-    if (!is_writable($upload_root)) $_die("Missing permissions for the root directory $upload_root!");
+    if (!is_writable($upload_root)) {
+        if (!is_dir($upload_root) && !mkdir($upload_root, 0775, true)) {
+            $_die("Missing permissions for the root directory $upload_root!");
+        }
+    }
 
     $dir_err = make_dir($directory);
     if ($dir_err != "") $_die("Target directory '$directory' is not create-able! <code>$dir_err</code>");
