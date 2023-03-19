@@ -120,7 +120,6 @@ if (isset($_POST['biopsy'])) {
 } else {
     error("Invalid request ID or file ID: provided no value.");
 }
-
 if ($renders_page) echo "Listing unprocessed files by $param<br>";
 
 $file_id_list = array_map(function ($x) { return $x["id"]; }, $out);
