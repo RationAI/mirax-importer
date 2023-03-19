@@ -558,11 +558,11 @@ class Uploader {
             case "processing":
                 updateUI();
                 break;
-            case "finished":
+            case "processing-finished":
                 updateUIFinish("The file has been successfully uploaded and processed.");
                 stopMonitoring();
                 return;
-            case "processing-failed":
+            case "failed":
                 updateUIError("The processing of this file failed." + (eventName ? " Note: analysis in progress..":""))
                 if (!eventName) stopMonitoring();
                 return;

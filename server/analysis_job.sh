@@ -23,11 +23,11 @@ cd ${c_w_d}
 if [ $RESULT -eq 0 ]
 then
   # finally, log this job as finished, php runs update on database logs
-  ./update_event.php "$1" "finished" "$4"
+  ./update_event.php "$1" "processing-finished" "$4"
   echo "DONE"
   exit 0
 else
-  ./update_event.php "$1" "processing-failed" "$4"
+  ./update_event.php "$1" "failed" "$4"
   echo "FAILED"
   exit $RESULT
 fi

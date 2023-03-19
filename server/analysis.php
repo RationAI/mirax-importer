@@ -16,7 +16,7 @@ function process($file_id_list, $algorithm, $session_id) {
     //executes shell script as a background task, copies to output to the log file and stores it
     $file_id_list = json_encode($file_id_list);
     $algorithm = json_encode($algorithm);
-    return shell_exec("$server_root/analysis_job.php 2>&1 '$file_id_list' '$algorithm' '$session_id' | tee -a '$upload_root/analysis_log.txt' 2>/dev/null >/dev/null &");
+    return shell_exec("{$server_root}analysis_job.php 2>&1 '$file_id_list' '$algorithm' '$session_id' | tee -a '$upload_root/analysis_log.txt' 2>/dev/null >/dev/null &");
 }
 
 ///////////////////////////////
@@ -53,12 +53,6 @@ function send_response($payload=null) {
     echo json_encode((object)array("status" => "success", "payload" => $payload));
 }
 
-if (!isset($_POST['algorithm']) || !isset($_POST['algorithm']["name"])) {
-    error("Invalid algorithm: provided no valid value: JSON object required.");
-}
-$algorithm = $_POST['algorithm'];
-
-require_once XO_DB_ROOT . "include.php";
 if ($renders_page) {
     echo <<<EOF
 <html>
@@ -77,6 +71,17 @@ if ($renders_page) {
 EOF;
 }
 
+$algorithm = $_POST['algorithm'] ?? [];
+
+try {
+    if ($algorithm && is_string($algorithm)) $algorithm = json_decode($algorithm, true);
+} catch (Exception $e) {
+    //pass
+}
+if (!isset($algorithm["name"])) {
+    error("Invalid algorithm: provided no valid value: JSON object required.");
+}
+require_once XO_DB_ROOT . "include.php";
 global $analysis_event_name;
 $out = array();
 $param = "";
@@ -98,8 +103,6 @@ if (isset($_POST['biopsy'])) {
     }
     //process files with missing event type or where event type not like "processing%"
     $out = xo_file_name_get_by_missing_event(tiff_fname_from_mirax($param), $event_name, "processing%");
-    if (isset($out["id"])) $out = [$out];
-    else $out = [];
     $param = "file name <b>$param</b>";
 
 } else if (isset($_POST['fileList'])) {
@@ -124,37 +127,42 @@ $file_id_list = array_map(function ($x) { return $x["id"]; }, $out);
 
 $no_files = count($out) < 1;
 if ($renders_page) {
-    if ($no_files && $out) {
-        echo "<p>No files available for processing. Below you can find a list of files available for the given request ID.</p>";
-    } else {
+    if (!$no_files) {
         echo "<p>The analysis has been initiated. These files will be processed.</p>";
     }
+
+    echo "<br><table class='width-full m-2 pb-2'><tr class='text-bold'><th>File</th><th>Root<th>Biopsy</th></tr>";
+
     if ($no_files) {
-        $out[] = array("name" => "No unprocessed files found.", "year" => "-", "biopsy" => "-");
-    }
-}
-
-if ($renders_page) {
-    echo "<br><table class='width-full m-2 pb-2'><tr class='text-bold'><th>File</th><th>Year><th>Biopsy</th></tr>";
-    foreach ($out as $row) {
-
         echo <<<EOF
 <tr>
+ <td>No unprocessed files found.</td>
+ <td>-</td>
+ <td>-</td>
+</tr>
+EOF;
+    } else {
+        foreach ($out as $row) {
+            echo <<<EOF
+<tr>
  <td>{$row["name"]}</td>
- <td>{$row["year"]}</td>
+ <td>{$row["root"]}</td>
  <td>{$row["biopsy"]}</td>
 </tr>
 EOF;
+        }
+        echo "</table><br>";
     }
-    echo "</table><br>";
-    echo "<p>The online process can be observed interactively using the upload form 'Monitor' function.</p>";
+    echo "<p>The online process can be observed interactively using the upload form 'Monitor' function, but you need
+to have the original mirax files locally. You can close this window, the analysis will continue.</p>";
 }
 
-if (count($out) < 1) {
+
+if ($no_files) {
     if ($renders_page) {
-        echo "<p>No files available for $param.</p>";
+        echo "<p>No unprocessed files available for $param.</p>";
     } else {
-        error("No files available for $param. Analysis not started.");
+        error("No unprocessed files available for $param. Analysis not started.");
     }
     exit();
 }
