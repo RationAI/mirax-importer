@@ -23,11 +23,11 @@ if (count($argv) < 4) {
 require_once "config.php";
 require_once XO_DB_ROOT . "include.php";
 
-
 if ($algo === "") {
     xo_update_file_by_name($file, $status);
-} else {
-    xo_file_name_event($file, "histopipe_$algo", $status);
+} else { //auto prefix
+    global $analysis_event_name;
+    xo_file_name_event($file, $analysis_event_name($algo), $status);
 }
 
 ?>

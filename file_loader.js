@@ -9,7 +9,7 @@ function file_iterator_predicate(info) {
 /**
  * Iterator, call uploader for ANY file info you deem necessary
  */
-const regExp = /^(.*([0-9]{4})[_-]([0-9]+).*)\.mrxs$/;
+const regExp = /^(.*?([0-9]{4})[_-]([0-9]+).*)\.mrxs$/;
 const fallBackRegExp = /^(.*)\.mrxs$/;
 function parseFileName(name) {
     let match = regExp.exec(name);
@@ -153,11 +153,11 @@ class Uploader {
                     success = data.status === "success";
                     console.log("Server response:", data);
                 } catch (e) {
-                    console.error(e, xhr.responseText);
+                    console.error(e, xhr.statusText);
                     data = {
                         status: "error",
                         message: "Unknown error.",
-                        payload: e
+                        payload: xhr.statusText
                     };
                 }
 
@@ -216,47 +216,53 @@ class Uploader {
         const self = this;
 
         $("#analysis").css('display', 'block');
-        $("#send-one-file-analysis").on('click', function () {
-            if (self._analysisRun) {
-                $("#analysis-message").removeClass("error-container").html("Still processing please wait...");
-            }
-
-            const caseId = $("#request-analysis").val();
-            console.log("Sending analysis request for case", caseId);
-
-            self._analysisRun = true;
-            fetch('server/analysis.php', {
-                method: "POST",
-                mode: 'cors',
-                cache: 'no-cache',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                body: JSON.stringify({
-                    request: caseId,
-                    ajax: true
-                })
-            }).then(response => response.json()).then(data => {
-                console.log('Analysis', data);
-                $("#analysis-message").removeClass("error-container").html(data.payload);
-                self._analysisRun = false;
-                self.monitorAll();
-            }).catch(e => {
-                console.log('Analysis Error', e);
-                $("#analysis-message").addClass("error-container").html(e.payload || e);
-                self._analysisRun = false;
-            });
-        });
+        // $("#send-one-file-analysis").on('click', function () {
+        //     if (self._analysisRun) {
+        //         $("#analysis-message").removeClass("error-container").html("Still processing please wait...");
+        //     }
+        //
+        //     const biopsy = $("#request-analysis").val().trim();
+        //     const eventName = $("#event-name-input").val().trim();
+        //     console.log("Sending analysis request for biopsy", biopsy, "event", eventName);
+        //
+        //     self._analysisRun = true;
+        //     fetch('server/analysis.php', {
+        //         method: "POST",
+        //         mode: 'cors',
+        //         cache: 'no-cache',
+        //         credentials: 'same-origin',
+        //         headers: {
+        //             'Content-Type': 'application/json',
+        //             'Access-Control-Allow-Origin': '*'
+        //         },
+        //         body: JSON.stringify({
+        //             biopsy: biopsy,
+        //             year: //todo
+        //             algorithm: {
+        //                 name: eventName
+        //             },
+        //             ajax: true
+        //         })
+        //     }).then(response => response.json()).then(data => {
+        //         console.log('Analysis', data);
+        //         $("#analysis-message").removeClass("error-container").html(data.payload);
+        //         self._analysisRun = false;
+        //         self.monitorAll(eventName);
+        //     }).catch(e => {
+        //         console.log('Analysis Error', e);
+        //         $("#analysis-message").addClass("error-container").html(e.payload || e);
+        //         self._analysisRun = false;
+        //     });
+        // });
 
         const files = this._uploadedFileNames;
         $("#send-all-analysis").on('click', function () {
             if (self._analysisRun) {
                 $("#analysis-message").removeClass("error-container").html("Still processing please wait...");
             }
-
-            console.log("Sending analysis request for file list", files);
+            //todo change event approach to algo approach
+            const eventName = $("#event-name-input").val().trim();
+            console.log("Sending analysis request for file list", files, "event", eventName);
 
             self._analysisRun = true;
             fetch('server/analysis.php', {
@@ -270,13 +276,23 @@ class Uploader {
                 },
                 body: JSON.stringify({
                     fileList: files,
+                    algorithm: {
+                        name: eventName
+                    },
                     ajax: true
                 })
             }).then(response => response.json()).then(data => {
-                console.log('Analysis', data);
-                $("#analysis-message").removeClass("error-container").html(data.payload);
-                self._analysisRun = false;
-                self.monitorAll();
+                if (data.status === "success") {
+                    console.log('Analysis', data);
+                    $("#analysis-message").removeClass("error-container").html(data.payload);
+                    self._analysisRun = false;
+                    self.monitorAll(eventName);
+                } else {
+                    console.log('Analysis Error', data);
+                    const details = data.payload ? `<code>${data.payload}</code>` : "";
+                    $("#analysis-message").addClass("error-container").html(`${data.message}${details}`);
+                    self._analysisRun = false;
+                }
             }).catch(e => {
                 console.log('Analysis Error', e);
                 $("#analysis-message").addClass("error-container").html(e.payload || e);
@@ -324,61 +340,6 @@ class Uploader {
                 this.updateBulkElementDownloading(this._bi, bulkItem, this._i-1);
 
                 return true;
-
-                // if (file.size < this.chunkUploadSizeLimit) {
-                //     return true;
-                // }
-                //
-                // //parallel? this.chunkUploadParallel
-                // const self = this;
-                // const upload = new tus.Upload(file, {
-                //     endpoint: "server/tus/",
-                //     retryDelays: [0, 3000, 5000, 10000, 20000],
-                //     chunkSize: this.chunkUploadSizeLimit,
-                //     metadata: {
-                //         name: file.name,
-                //         type: file.type,
-                //         fileName: file.name,
-                //         year: year,
-                //     },
-                //     onError: (e) => {
-                //         console.error("Chunk error!", e);
-                //         const willContinue = self._onUploadFinish(false, {
-                //             status: "error",
-                //             message: "Unknown error.",
-                //         });
-                //         if (willContinue) self._uploadStep();
-                //         else self._uploadBulkStep();
-                //     },
-                //     onProgress: (bytesUploaded, bytesTotal) => {
-                //         let percentage = Math.round(bytesUploaded / bytesTotal * 100);
-                //         self._onUploadProgress(bytesTotal, percentage);
-                //     },
-                //     onSuccess: () => {
-                //         console.log("Download %s from %s", upload.file.name);
-                //         const willContinue = self._onUploadFinish(false, {
-                //             status: "error",
-                //             message: "Unknown error.",
-                //         });
-                //         if (willContinue) self._uploadStep();
-                //         else self._uploadBulkStep();
-                //     }
-                // });
-                //
-                // //todo what about resumed stuff?
-                // // // Check if there are any previous uploads to continue.
-                // // upload.findPreviousUploads().then(function (previousUploads) {
-                // //     // Found previous uploads so we select the first one.
-                // //     if (previousUploads.length) {
-                // //         upload.resumeFromPreviousUpload(previousUploads[0])
-                // //     }
-                // //
-                // //     // Start the upload
-                // //     upload.start()
-                // // })
-                // upload.start();
-                //
-                // return false; //do not proceed using the default form upload
             };
             this._onUploadProgress = (total, percentComplete) => {
                 const percentVal = percentComplete + '%';
@@ -392,7 +353,16 @@ class Uploader {
                 if (!success) {
                     this.updateBulkElementError(this._bi, json.message, json.payload);
                 }
-                return success; //continue only if successful
+
+                //verify only when checksum client-side computed
+                if (bulkItem.checksum !== undefined && bulkItem.checksum !== json.payload) {
+                    bulkItem.error = `Computed checksum locally: ${bulkItem.checksum}, on server: ${json.payload}`;
+                    console.error(bulkItem.error);
+                    this.updateBulkElementError(this._bi, `Checksum comparison on file ${bulkItem.fileInfo.name} failed!`,
+                        `Computed checksum locally: ${bulkItem.checksum}, on server: ${json.payload}`);
+                    return false;
+                }
+                return success;
             };
         }
     }
@@ -434,27 +404,42 @@ class Uploader {
 
     //html
     createBulkProgressElement(title, index, bulk) {
-        $(UI.progress).append(`<div class="py-2 px-4 m-2 rounded border pointer">
+        $(UI.progress).append(`<div id="bulk-${index}-container" class="py-2 px-4 m-2 rounded border pointer position-relative">
 <h3>${title}</h3>
 <div id="bulk-element-${index}" class="mt-1 mx-1">
 <span class="m-2">Waiting in queue</span>
 </div>
-<code id="bulk-checksum-${index}" class="my-2 pl-3 d-block">MD5 Checksum: ${bulk.checksum || "computing..."}</code>
+<code id="bulk-checksum-${index}" class="my-2 pl-3 d-block">MD5 Checksum: ${bulk.checksum || "not verified."}</code>
+<div id="bulk-error-${index}" class="mt-1 mx-1"></div>
 </div>`);
+    }
+
+    setAsMonitoring(index, monitoring=true) {
+        const node = $(`#bulk-${index}-container`);
+        if (monitoring) node.addClass("monitoring");
+        else node.removeClass("monitoring");
     }
 
     updateBulkElementChecksum(index, checksum) {
         $(`#bulk-checksum-${index}`).html(`
-            MD5 Checksum: ${checksum || "computing..."}
+            MD5 Checksum: ${checksum || "not verified."}
         `);
+    }
+
+    disableBulkElementChecksum(index) {
+        $(`#bulk-checksum-${index}`).remove();
     }
 
     updateBulkElementError(index, error, details="") {
         details = details ? `<code>${details}</code>` : "";
-        $(`#bulk-element-${index}`).html(`
+        $(`#bulk-error-${index}`).append(`
           <div class="error-container">${error}${details}</div>
         `);
-        this.updateBulkElementChecksum(index, "---");
+        // this.updateBulkElementChecksum(index, "---");
+    }
+
+    clearBulkElementError(index) {
+        $(`#bulk-error-${index}`).html("");
     }
 
     updateBulkElementDownloading(index, bulkItem) {
@@ -513,7 +498,13 @@ class Uploader {
 ///  CORE
 ///////////////////////////////
 
-    _monitoring = async (routine, tstamp, timeout, isMonitoringOnly, isProcessing, updateUI, updateUIFinish, updateUIError) => {
+    _monitoring = async (routine, tstamp, timeout, isMonitoringOnly, eventName, updateUI, updateUIFinish, updateUIError, stopMonitoring) => {
+        // switch checking
+        if (!eventName && routine.uploaded) {
+            //special upload event name
+            eventName = "mirax-importer";
+        }
+
         const response = await fetch(UI.form.getAttribute("action"), {
             method: "POST",
             headers: {
@@ -523,16 +514,14 @@ class Uploader {
                 command: "checkFileStatus",
                 biopsy: routine.biopsy,
                 year: routine.year,
-                fileName: routine.fileName
+                fileName: routine.fileName,
+                eventName: eventName || "", //todo re-write to algorithm specs and parse algo specs
             })
         });
-        let data = await response.json(),
-            id = routine.intervalId;
-
+        let data = await response.json();
         if (data.status !== "success" || typeof data.payload !== "object") {
             updateUIError("Failed to upload file: please, try again.", data.message);
-            clearInterval(id);
-            delete routine.intervalId;
+            stopMonitoring();
             return;
         }
 
@@ -546,54 +535,59 @@ class Uploader {
         //     return;
         // }
 
+        if ( data["status"] === undefined) {
+            data["status"] = routine.uploaded ? "uploaded" : "not-yet-processed";
+        }
+
         switch (data["status"]) {
             case "uploaded":
+                if (!routine.uploaded) updateUI("File is uploaded.<br>Biopsy: <b>" + data["biopsy"] + "</b>. You can start the analysis, processed files will be ignored. File is not yet available to the viewer.", false);
+                routine.uploaded = true;
                 break;
-            case "converting":
-                updateUI("The file is being converted to a pyramidal tiff");
+            case "tiff-generated":
+                updateUI("File is uploaded. <br>Biopsy: <b>" + data["biopsy"] + "</b>. Tiff file is generated - the file is now available in the browser.", false);
+                stopMonitoring();
                 break;
-            case "ready":
-                updateUI("File is uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Biopsy: <b>" + data["biopsy"] + "</b>. Do not close this window to observe the process.", false);
+            case "tiff-failed":
+                updateUI("File is uploaded. <br>Biopsy: <b>" + data["biopsy"] + "</b>. The file can be processed but not viewed: tiff file not generated!", false);
+                stopMonitoring();
+                break;
+            case "not-yet-processed":
+                updateUI("File not processed. It might be waiting in a queue.", false);
                 break;
             case "processing":
                 updateUI();
                 break;
             case "finished":
                 updateUIFinish("The file has been successfully uploaded and processed.");
-                clearInterval(id);
-                delete routine.intervalId;
+                stopMonitoring();
                 return;
             case "processing-failed":
-                updateUIError("The processing of this file failed." + (isProcessing ? " Note: analysis in progress..":""))
-                if (!isProcessing) {
-                    clearInterval(id);
-                    delete routine.intervalId;
-                }
+                updateUIError("The processing of this file failed." + (eventName ? " Note: analysis in progress..":""))
+                if (!eventName) stopMonitoring();
                 return;
             default:
-                updateUIError("Unknown error. Please, try again.", data.message);
+                updateUIError("Unknown error. Some processes might have finished.", data.message);
                 console.error(`Invalid server response <code>Unknown file status ${data['status']}</code>`, data);
-                clearInterval(id);
-                delete routine.intervalId;
+                stopMonitoring();
                 return;
         }
 
         if (Date.now() - tstamp > timeout) {
             updateUI("Timed out. The session has been running too long.");
-            clearInterval(id);
-            delete routine.intervalId;
+            stopMonitoring();
         }
     }
 
-    monitorBulk(bulkIndex, forProcessing) {
+    monitorBulk(bulkIndex, eventName) {
         const routine = this._joblist[bulkIndex]?.checkRoutine;
 
         if (routine) {
-            this.monitor(routine, bulkIndex, forProcessing);
+            this.monitor(routine, bulkIndex, eventName);
         }
     }
 
-    monitor(object, htmlListIndex, forProcessing) {
+    monitor(object, htmlListIndex, eventName) {
         if (object.intervalId) {
             return; //running
         }
@@ -601,6 +595,11 @@ class Uploader {
         const updateUI = this.updateBulkElementProcessing.bind(this, htmlListIndex);
         const updateUIFinish = this.updateBulkElementFinished.bind(this, htmlListIndex);
         const updateUIError = this.updateBulkElementError.bind(this, htmlListIndex);
+        const stopMonitor = (() => {
+            if (object.intervalId) clearInterval(object.intervalId);
+            delete object.intervalId;
+            this.setAsMonitoring(htmlListIndex, false);
+        }).bind(this);
 
         const tstamp = Date.now(),
             timeout = this.jobTimeout,
@@ -611,27 +610,28 @@ class Uploader {
 
         object.intervalId = setInterval(() => {
             self._monitoring(
-                object, tstamp, timeout, isMonitoringOnly, forProcessing,
-                updateUI, updateUIFinish, updateUIError
+                object, tstamp, timeout, isMonitoringOnly, eventName,
+                updateUI, updateUIFinish, updateUIError, stopMonitor
             );
         }, periodTimeout);
 
         //run immediately
         self._monitoring(
-            object, tstamp, timeout, isMonitoringOnly, forProcessing,
-            updateUI, updateUIFinish, updateUIError
+            object, tstamp, timeout, isMonitoringOnly, eventName,
+            updateUI, updateUIFinish, updateUIError, stopMonitor
         );
+        this.setAsMonitoring(htmlListIndex);
     }
 
-    monitorAll(processing=true) {
+    monitorAll(eventName=undefined) {
         for (let i = 0; i < this._joblist.length; i++) {
-            this.monitorBulk(i, processing);
+            this.monitorBulk(i, eventName);
         }
     }
 
     _uploadBulkStep(monitor=true) {
         if (this._bi >= 0 && monitor) { //if routine was skipped, do not initiate checking
-            this.monitorBulk(this._bi, false);
+            this.monitorBulk(this._bi);
         }
 
         if (this._bi >= this._joblist.length - 1) {
@@ -663,8 +663,13 @@ class Uploader {
         return this._uploadBulkStep();
     }
 
-    startBulkUpload() {
+    startBulkUpload(verifyChecksumFinished=true) {
         const {bulkList, monitorOnly} = this._sessionReady;
+        if (verifyChecksumFinished && !this.checksumFinished(bulkList)) {
+            alert("Checksum computation still not finished, please start uploading after checksums are computed.");
+            return;
+        }
+
         delete this._sessionReady;
         $(UI.progress).html("");
 
@@ -718,7 +723,9 @@ class Uploader {
                         case "ready":
                             //if (!data.created_delta || data.created_delta < this.jobTimeout) { //do not overwrite if still within timeout
                                 const msg = this.monitorOnly ? "File is " : "Uploading not initiated: file is ";
-                                this.updateBulkElementProcessing(this._bi,msg + " already uploaded but not yet processed. This has to be started manually. It is recommended to wait after all files are loaded.<br>Biopsy: <b>" + data["biopsy"] + "</b>", false);
+                                this.updateBulkElementProcessing(this._bi,msg + " already uploaded but not yet processed. This has to be started manually. <br>Biopsy: <b>" + data["biopsy"] + "</b>", false);
+                                this.disableBulkElementChecksum(this._bi);
+                                this._uploadedFileNames.push(targetElem.fileName); //include to uploaded files
                                 return false;
                             // }
                             // return true;
@@ -818,7 +825,8 @@ class Uploader {
     }
 
     middleStepVerifyParsedFiles() {
-        const data = ["<h1 class='f2-light'>Verification Step</h1><p>Please verify that all file names are valid, i.e. year and biopsy numbers are recognized correctly and files are complete.</p><br>"], _this = this;
+        const data = ["<h1 class='f2-light'>Verification Step</h1><p>Please verify that all file names are valid, i.e. year and biopsy numbers are recognized correctly and files are complete.</p><br>"];
+        const _this = this;
 
         function printTitleMeta(item) {
             return `&emsp;<span style="font-size: 12pt !important;">${item.year || '<span style="color: var(--color-text-danger)">unknown</span>'}  |  ${item.biopsy || '<span style="color: var(--color-text-danger)">unknown</span>'}</span>`;
@@ -830,11 +838,9 @@ class Uploader {
 id="bulk-element-${index}" class="mt-1 mx-1"><div class="error-container">Invalid MRXS File! This file won't 
 be uploaded. Biopsy <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b><code>${bulk.parseErrors.join("<br>")}</code></div></div></div>`;
             }
-
-            _this.computeBulkMD5(bulk);
             return `<div class="py-2 px-4 m-2 rounded border pointer"><h3>${title}  ${printTitleMeta(targetElem)}</h3>
 <div id="bulk-element-${index}" class="mt-1 mx-1"><span class="m-2">File will be uploaded with <b>biopsy</b> number <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b></span></div>
-<code id="bulk-checksum-${index}" class="my-2 pl-3 d-block">MD5 Checksum: ${bulk.checksum || "computing..."}</code>
+<code id="bulk-checksum-${index}" class="my-2 pl-3 d-block">MD5 Checksum: ${bulk.checksum || "start manually if required."}</code>
 </div>`;
         }
 
@@ -847,37 +853,114 @@ be uploaded. Biopsy <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b><
             if (!targetElem.year || !targetElem.biopsy) bulk.parseErrors.push("Invalid Year or Biopsy number: this file won't be uploaded!");
             data.push(createCheckBulkNode(targetElem.fileInfo?.name || "Item " + (i + 1), i, bulk, targetElem));
         }
-        const btn = document.createElement("button");
+        let btn = document.createElement("button");
         btn.classList.add("btn");
         btn.onclick = this.startBulkUpload.bind(this);
+        btn.id = "mid-step-verify-upload";
         btn.innerText = "Start Uploading";
         $(UI.progress).html(data.join(""));
         UI.progress.appendChild(btn);
+
+        btn = document.createElement("button");
+        btn.classList.add("btn", "ml-2");
+        btn.onclick = this.middleStepRequireCheckSumCheck.bind(this);
+        btn.id = "mid-step-checksum-verify-upload";
+        btn.innerText = "Upload + auto Checksum Verification (slower)";
+        UI.progress.appendChild(btn);
+        this.checksumFinished = (bulkList) => true; //rewritten if started
+    }
+
+    middleStepRequireCheckSumCheck() {
+        const {bulkList} = this._sessionReady;
+        for (let i = 0; i < bulkList.length; i++) {
+            const bulk = bulkList[i];
+            this.computeBulkMD5(bulk);
+            this.updateBulkElementChecksum(bulk.index, "computing...");
+        }
+        $("#mid-step-checksum-verify-upload").attr("disabled", true);
+        $("#mid-step-verify-upload").attr("disabled", true);
+
     }
 
     computeBulkMD5(bulk) {
-        const _this = this;
-        let calls = 1;
-        let chunks = [];
-        function finish(chunk) {
-            chunks.push(chunk)
-            if (calls > 0) {
-                calls--;
-                return;
+        //from https://stackoverflow.com/questions/39112096/calculate-md5-hash-of-a-large-file-using-javascript
+        function readChunked(file, chunkCallback, endCallback) {
+            var fileSize   = file.size;
+            var chunkSize  = 4 * 1024 * 1024; // 4MB
+            var offset     = 0;
+
+            var reader = new FileReader();
+            reader.onload = function() {
+                if (reader.error) {
+                    endCallback(reader.error || {});
+                    return;
+                }
+                offset += reader.result.length;
+                // callback for handling read chunk
+                // TODO: handle errors
+                chunkCallback(reader.result, offset, fileSize);
+                if (offset >= fileSize) {
+                    endCallback(null);
+                    return;
+                }
+                readNext();
+            };
+
+            reader.onerror = function(err) {
+                endCallback(err || {});
+            };
+
+            function readNext() {
+                var fileSlice = file.slice(offset, offset + chunkSize);
+                reader.readAsBinaryString(fileSlice);
             }
-            bulk.checksum = CryptoJS.MD5(chunks.join("")).toString(CryptoJS.enc.Base64);
-            _this.updateBulkElementChecksum(bulk.index, bulk.checksum);
+            readNext();
         }
 
-        bulk.data.forEach(data => {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const binary = event.target.result;
-                data.checksum = CryptoJS.MD5(binary).toString(CryptoJS.enc.Base64);
-                finish(data.checksum);
-            };
-            reader.readAsBinaryString(data.fileInfo);
+        function getMD5(blob, cbProgress) {
+            return new Promise((resolve, reject) => {
+                var md5 = CryptoJS.algo.MD5.create();
+                readChunked(blob, (chunk, offs, total) => {
+                    md5.update(CryptoJS.enc.Latin1.parse(chunk));
+                    if (cbProgress) {
+                        cbProgress(offs / total);
+                    }
+                }, err => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        // TODO: Handle errors
+                        var hash = md5.finalize();
+                        var hashHex = hash.toString(CryptoJS.enc.Hex);
+                        resolve(hashHex);
+                    }
+                });
+            });
+        }
+
+        const _this = this;
+        const doneMessage = "verified automatically.";
+        // let chunks = [];
+        this.checksumFinished = (bulkList) => bulkList.every(b => b.checksum === doneMessage); //rewritten
+
+        Promise.all(
+            bulk.data.filter(data => data.fileInfo).map(data => {
+                console.log(data);
+                return getMD5(data.fileInfo, p => console.log(p)).then(chunk => {
+                    //chunks.push(chunk);
+                    data.checksum = chunk;
+                });
+            })
+        ).then(() => {
+            //just compare file-wise
+            //bulk.checksum = CryptoJS.MD5(chunks.join("")).toString(CryptoJS.enc.Hex);
+            bulk.checksum = doneMessage;
+            _this.updateBulkElementChecksum(bulk.index, bulk.checksum);
+            const {bulkList} = _this._sessionReady;
+            if (_this.checksumFinished(bulkList)) {
+                _this.startBulkUpload(false);
+            }
         });
-        finish("");
+
     }
 }

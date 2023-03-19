@@ -17,14 +17,24 @@ function file_uploaded($filename, $directory, $biopsy, $year, $session_id) {
     }
 
     //executes shell script as a background task, copies to output to the log file and stores it
-    return shell_exec("$server_root/conversion_job.sh 2>&1 '$filename' '$directory' '$biopsy' '$year' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
+    return shell_exec("{$server_root}conversion_job.sh 2>&1 '$filename' '$directory' '$biopsy' '$year' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
 }
 
 
-function get_file_status($fname) {
+function get_file_status($fname, $event) {
     require_once XO_DB_ROOT . "include.php";
 
-    $data = xo_get_file_by_name($fname);
+    if ($event) {
+        global $analysis_event_name;
+        $data = xo_file_name_get_latest_event($fname, $analysis_event_name($event));
+        //we record status as data record, the latest record tells us event status
+        if (isset($data["data"])) {
+            //override file.status for front-end
+            $data["status"] = $data["data"];
+        }
+    } else {
+        $data = xo_get_file_by_name($fname);
+    }
 
     //should be in UTC
     if (isset($data["created"])) {
@@ -118,6 +128,17 @@ switch ($_POST["command"]) {
             exit();
         };
 
+        $checksum = null;
+        if (strlen($_POST["checksum"]) > 10 ) {
+            $checksum = md5_file($file_data["tmp_name"]);
+            $client_checksum = trim($_POST["checksum"]);
+            if ($checksum !== $client_checksum) {
+                error("Checksum verification failed for '$target_path/$name'!", array(
+                    "errorCode" => 42,
+                    "payload" => "Server computed '$checksum', client '$client_checksum'."
+                ));
+            }
+        }
         if (!upload_file($file_data["tmp_name"], $name, $target_path, $error_handler)) {
             $err = error_get_last();
             if (is_array($err)) $err = $err["message"] ?? implode(" | ", $err);
@@ -127,7 +148,7 @@ switch ($_POST["command"]) {
                 "payload" => $err
             ));
         }
-        send_response();
+        send_response($checksum);
     }
 
     case "checkFileExists": {
@@ -144,13 +165,14 @@ switch ($_POST["command"]) {
         $biopsy = $_POST["biopsy"];
         $year = $_POST["year"];
         $name = $_POST["fileName"];
+        $event = $_POST["eventName"];
         if (!$biopsy || !$year || !$name) {
             error("Cannot verify file existence - execution failed: missing metadata.");
         }
         if (!file_exists(get_upload_path($name, $year, $biopsy, true))) {
             send_response(array());
         } else {
-            send_response(get_file_status(tiff_fname_from_mirax($name)));
+            send_response(get_file_status(tiff_fname_from_mirax($name), trim($event)));
         }
     }
 
@@ -159,32 +181,32 @@ switch ($_POST["command"]) {
     }
 
     case "fileUploadBulkFinished": {
-        $biopsy = $_POST["biopsy"];
-        $year = $_POST["year"];
-        $name = $_POST["fileName"];
+        $biopsy = trim($_POST["biopsy"]);
+        $year = trim($_POST["year"]);
+        $name = trim($_POST["fileName"]);
         if (!$biopsy || !$year || !$name) {
             error("Cannot process files - fileUploadBulkFinished failed: missing metadata.");
         }
 
-        $biopsy = (int)$biopsy;
         $year = clean_path($year);
         $name = clean_path($name);
         try {
             require_once XO_DB_ROOT . "include.php";
             //todo request_id not used check its use
-            xo_insert_or_get_file(tiff_fname_from_mirax($name), $biopsy, "uploaded", file_path_year($year), $biopsy);
+            $file = xo_insert_or_ignore_file(tiff_fname_from_mirax($name), "uploaded", file_path_year($year), $biopsy);
+            if ($file != null) error("Uploaded file present in the database: '$name'!", $file);
         } catch (Exception $e) {
-            error("File uploaded but the system failed to create an upload record: '$name'!");
+            error("File uploaded but the system failed to create an upload record: '$name'!", $e);
         }
         $name_only = pathinfo($name, PATHINFO_FILENAME);
-        $result = file_uploaded(
+        file_uploaded(
             $name,
             target_upload_dir(file_path_from_year_biopsy($name_only, $year, $biopsy, true)),
             $biopsy,
             $year,
             time()
         ); //tstamp as session
-        send_response(array("Upload finished for $name", $result));
+        send_response(array("Upload finished for $name"));
     }
 
     case "clean": {
