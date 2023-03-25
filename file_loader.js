@@ -120,7 +120,7 @@ class Uploader {
         const self = this;
         this.running = false;
         this.jobTimeout = 86400000; //one day
-        this.jobCheckRoutinePeriod = 5000; //5 secs per slide;
+        this.jobCheckRoutinePeriod = 30000; //30 secs per slide;
         this.chunkUploadSizeLimit = 26214400;
         this.chunkUploadParallel = 20;
 
@@ -596,9 +596,11 @@ class Uploader {
         const updateUIFinish = this.updateBulkElementFinished.bind(this, htmlListIndex);
         const updateUIError = this.updateBulkElementError.bind(this, htmlListIndex);
         const stopMonitor = (() => {
-            if (object.intervalId) clearInterval(object.intervalId);
-            delete object.intervalId;
-            this.setAsMonitoring(htmlListIndex, false);
+            if (object.intervalId) {
+                clearInterval(object.intervalId);
+                delete object.intervalId;
+                this.setAsMonitoring(htmlListIndex, false);
+            }
         }).bind(this);
 
         const tstamp = Date.now(),
@@ -607,6 +609,9 @@ class Uploader {
             isMonitoringOnly = this.monitorOnly,
             periodTimeout = this._joblist?.length > 0  //scale with job count
                 ? this._joblist.length * this.jobCheckRoutinePeriod : this.jobCheckRoutinePeriod;
+
+        //override
+        stopMonitor(object);
 
         object.intervalId = setInterval(() => {
             self._monitoring(

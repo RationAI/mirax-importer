@@ -158,6 +158,10 @@ switch ($_POST["command"]) {
         if (!$biopsy || !$year || !$name) {
             error("Cannot verify file existence - execution failed: missing metadata.");
         }
+        $file = xo_get_file_by_name(tiff_fname_from_mirax($name));
+        if (isset($file["id"])) {
+            send_response(true);
+        }
         send_response(file_exists(get_upload_path($name, $year, $biopsy, true)));
     }
 
@@ -169,11 +173,7 @@ switch ($_POST["command"]) {
         if (!$biopsy || !$year || !$name) {
             error("Cannot verify file existence - execution failed: missing metadata.");
         }
-        if (!file_exists(get_upload_path($name, $year, $biopsy, true))) {
-            send_response(array());
-        } else {
-            send_response(get_file_status(tiff_fname_from_mirax($name), trim($event)));
-        }
+        send_response(get_file_status(tiff_fname_from_mirax($name), trim($event)));
     }
 
     case "computeBulkCheckSum": {

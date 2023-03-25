@@ -31,6 +31,6 @@ then
   echo "$3:$5 DONE"
 else
   ./update_event.php "$SOURCE_TIFF" "tiff-failed" "mirax-importer"
-  echo "$3:$5 FAILED - CODE $RESULT"
+  echo "$3:$5 FAILED - ERR $RESULT"
 fi
 exit $RESULT
