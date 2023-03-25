@@ -20,8 +20,8 @@ echo "$3:$5 converting tiff..."
 vips tiffsave "$SOURCE_FILE" "$TARGET_TIFF" --tile --pyramid --compression=jpeg --Q=60 --tile-width 512 --tile-height 512 --bigtiff
 RESULT=$?
 
-#extract label image
-#./mirax_extract_meta.py "$SOURCE_FILE" "$2/m_label.png"
+#extract label image, ignore failure
+python3 mirax_extract_meta/label_extractor.py "$SOURCE_FILE" "$2/m_label.png"
 
 # then, get ready for analysis
 
