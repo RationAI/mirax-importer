@@ -4,21 +4,18 @@ cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"  # cd current directory
 
 #parameters
 # $1 - file name
-# $2 - absolute file path
+# $2 - absolute mirax file path
 # $3 - biopsy
 # $4 - algorithm name
-# $5 - session id
+# $5 - algorithm data - serialized JSON
+# $6 - session id
 
 ./update_event.php "$1" "processing" "$4"
-SOURCE_FILE=$2
 
-c_w_d=${PWD}
-#cd /mnt/data/visualization-public-demo/histopat
-#snakemake target_vis --config slide_fp="${SOURCE_FILE}"
-#RESULT=$?
-sleep 20
-RESULT=0
-cd ${c_w_d}
+micromamba activate mirax_venv
+snakemake target_vis --config slide_fp="$2" algorithm="$5"
+RESULT=$?
+micromamba deactivate mirax_venv
 
 if [ $RESULT -eq 0 ]
 then

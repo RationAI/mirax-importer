@@ -21,8 +21,9 @@ vips tiffsave "$SOURCE_FILE" "$TARGET_TIFF" --tile --pyramid --compression=jpeg 
 RESULT=$?
 
 #extract label image, ignore failure
+micromamba activate mirax_venv
 python3 mirax_extract_meta/label_extractor.py "$SOURCE_FILE" "$2/m_label.png"
-
+micromamba deactivate mirax_venv
 # then, get ready for analysis
 
 if [ $RESULT -eq 0 ]

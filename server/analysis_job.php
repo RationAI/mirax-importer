@@ -13,7 +13,8 @@ if (count($argv) < 2) {
 
 global $file_id_list, $event_name, $session_id, $analysis_event_name;
 $file_id_list = json_decode(trim($argv[1]), true);
-$algorithm = json_decode(trim($argv[2]), true);
+$algorithm_serialized = trim($argv[2]);
+$algorithm = json_decode($algorithm_serialized, true);
 $session_id = trim($argv[3]); //identifier if file can be a '#' separated file list string
 $event_name = $analysis_event_name($algorithm["name"]);
 
@@ -22,15 +23,13 @@ function output($msg) {
     echo "$event_name:$session_id: $msg\n";
 }
 
-function process($file_name, $file_path, $biopsy, $algorithm_name, $session_id) {
+function process($file_name, $file_path, $biopsy, $algorithm_name, $algorithm, $session_id) {
     //todo in future flexible way of sending algo params here
     global $server_root;
 
     //inspect file path, search for mirax file name
-
-
-    //exec busy-waiting shell analysis
-    return shell_exec("$server_root/analysis_job.sh 2>&1 '$file_name' '$file_path' '$biopsy' '$algorithm_name' '$session_id'");
+    //exec busy-waiting shell analysis!
+    return shell_exec("$server_root/analysis_job.sh 2>&1 '$file_name' '$file_path' '$biopsy' '$algorithm_name' '$algorithm' '$session_id'");
 }
 
 output("Running analysis job session: Algorithm configuration {$argv[2]}");
@@ -41,7 +40,8 @@ $out = xo_files_by_id($file_id_list);
 foreach ($out as $row) {
     try {
         output("File " . $row["name"]);
-        output(process($row["name"], file_path_from_db_record($row), $row["biopsy"], $algorithm["name"], $session_id));
+        output(process($row["name"], file_path_from_db_record($row), $row["biopsy"],
+            $algorithm["name"], $algorithm_serialized, $session_id));
     } catch (Exception $e) {
         output("Processing failed for file " . $row["file"]);
     }
