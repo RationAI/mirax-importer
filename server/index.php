@@ -4,59 +4,6 @@ require_once "config.php";
 require_once "functions.php";
 
 ///////////////////////////////
-///  UTILS
-///////////////////////////////
-
-function file_uploaded($filename, $directory, $biopsy, $year, $session_id) {
-    global $log_file, $server_root;
-
-    //make sure .skip file exists
-    $parent_dir = dirname($directory);
-    if (!file_exists("$parent_dir/.pull")) {
-        file_put_contents("$parent_dir/.pull", 'tiff');
-    }
-
-    //executes shell script as a background task, copies to output to the log file and stores it
-    return shell_exec("{$server_root}conversion_job.sh 2>&1 '$filename' '$directory' '$biopsy' '$year' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
-}
-
-
-function get_file_status($fname, $event) {
-    require_once XO_DB_ROOT . "include.php";
-
-    if ($event) {
-        global $analysis_event_name;
-        $data = xo_file_name_get_latest_event($fname, $analysis_event_name($event));
-        //we record status as data record, the latest record tells us event status
-        if (isset($data["data"])) {
-            //override file.status for front-end
-            $data["status"] = $data["data"];
-        }
-    } else {
-        $data = xo_get_file_by_name($fname);
-    }
-
-    //should be in UTC
-    if (isset($data["created"])) {
-        $data["created_delta"] = time() - strtotime($data["created"]);
-    }
-    return $data;
-}
-
-function erase_dirs() {
-    global $upload_root;
-    if(file_exists($upload_root)){
-        $di = new RecursiveDirectoryIterator($upload_root, FilesystemIterator::SKIP_DOTS);
-        $ri = new RecursiveIteratorIterator($di, RecursiveIteratorIterator::CHILD_FIRST);
-        foreach ( $ri as $file ) {
-            $file->isDir() ?  rmdir($file) : unlink($file);
-        }
-    }
-    require_once XO_DB_ROOT . "include.php";
-    xo_files_erase();
-}
-
-///////////////////////////////
 ///  CORE
 ///////////////////////////////
 
@@ -92,10 +39,26 @@ if (!isset($_POST['command'])) {
     error("Invalid command: no-op.");
 }
 
-function get_upload_path($name, $year, $biopsy, $is_mirax) {
-    $name_only = pathinfo($name, PATHINFO_FILENAME);
-    $target_path = file_path_from_year_biopsy($name_only, $year, $biopsy, $is_mirax);
-    return target_upload_path($name, $target_path);
+function get_file_status($fname, $event) {
+    require_once XO_DB_ROOT . "include.php";
+
+    if ($event) {
+        global $analysis_event_name;
+        $data = xo_file_name_get_latest_event($fname, $analysis_event_name($event));
+        //we record status as data record, the latest record tells us event status
+        if (isset($data["data"])) {
+            //override file.status for front-end
+            $data["status"] = $data["data"];
+        }
+    } else {
+        $data = xo_get_file_by_name($fname);
+    }
+
+    //should be in UTC
+    if (isset($data["created"])) {
+        $data["created_delta"] = time() - strtotime($data["created"]);
+    }
+    return $data;
 }
 
 switch ($_POST["command"]) {
@@ -176,10 +139,6 @@ switch ($_POST["command"]) {
         send_response(get_file_status(tiff_fname_from_mirax($name), trim($event)));
     }
 
-    case "computeBulkCheckSum": {
-        //todo
-    }
-
     case "fileUploadBulkFinished": {
         $biopsy = trim($_POST["biopsy"]);
         $year = trim($_POST["year"]);
@@ -199,8 +158,12 @@ switch ($_POST["command"]) {
             error("File uploaded but the system failed to create an upload record: '$name'!", $e);
         }
         $name_only = pathinfo($name, PATHINFO_FILENAME);
+        global $log_file, $server_root;
         file_uploaded(
+            $log_file,
+            $server_root,
             $name,
+            tiff_fname_from_mirax($name),
             target_upload_dir(file_path_from_year_biopsy($name_only, $year, $biopsy, true)),
             $biopsy,
             $year,
@@ -210,7 +173,14 @@ switch ($_POST["command"]) {
     }
 
     case "clean": {
+        global $safe_mode;
+        if ($safe_mode) {
+            error("Not allowed in safe mode!");
+        }
         erase_dirs();
+        require_once XO_DB_ROOT . "include.php";
+        xo_files_erase();
+
         send_response();
     }
 

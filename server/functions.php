@@ -44,6 +44,12 @@ function file_path_from_db_record($record) {
     return "{$record["root"]}$biopsy$file";
 }
 
+function get_upload_path($name, $year, $biopsy, $is_mirax) {
+    $name_only = pathinfo($name, PATHINFO_FILENAME);
+    $target_path = file_path_from_year_biopsy($name_only, $year, $biopsy, $is_mirax);
+    return target_upload_path($name, $target_path);
+}
+
 function clean_path($path) {
     $path = trim($path);
     $path = trim($path, '\\/');
@@ -125,5 +131,29 @@ if (! function_exists('str_ends_with')) {
     {
         $needle_len = strlen($needle);
         return ($needle_len === 0 || 0 === substr_compare($haystack, $needle, - $needle_len));
+    }
+}
+
+function file_uploaded($log_file, $server_root,
+                       $mrxs_name, $tiff_name, $directory,
+                       $biopsy, $year, $session_id) {
+    //make sure .skip file exists
+    $parent_dir = dirname($directory);
+    if (!file_exists("$parent_dir/.pull")) {
+        file_put_contents("$parent_dir/.pull", 'tiff');
+    }
+    //executes shell script as a background task, copies to output to the log file and stores it
+    return shell_exec("{$server_root}conversion_job.sh 2>&1 '$mrxs_name' '$tiff_name' '$directory' '$biopsy' '$year' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
+}
+
+
+function erase_dirs() {
+    global $upload_root;
+    if(file_exists($upload_root)){
+        $di = new RecursiveDirectoryIterator($upload_root, FilesystemIterator::SKIP_DOTS);
+        $ri = new RecursiveIteratorIterator($di, RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ( $ri as $file ) {
+            $file->isDir() ?  rmdir($file) : unlink($file);
+        }
     }
 }

@@ -1,6 +1,7 @@
 #!/bin/bash
 #cwd
 cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"  # cd current directory
+source /var/www/.bashrc
 
 #parameters
 # $1 - file name
@@ -12,10 +13,10 @@ cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"  # cd current directory
 
 ./update_event.php "$1" "processing" "$4"
 
-micromamba activate mirax_venv
+micromamba activate snakemake
 snakemake target_vis --config slide_fp="$2" algorithm="$5"
 RESULT=$?
-micromamba deactivate mirax_venv
+micromamba deactivate
 
 if [ $RESULT -eq 0 ]
 then

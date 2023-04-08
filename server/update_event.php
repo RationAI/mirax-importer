@@ -4,8 +4,6 @@
 /**
  * Shell To PHP Database File Status Update
  *
- * TODO record status as algorithm status and type as histopipe_[algorithm]
- *
  * Empty Algorithm Input means the file status is to be updated.
  */
 if (count($argv) < 3) {

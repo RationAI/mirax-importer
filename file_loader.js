@@ -563,8 +563,8 @@ class Uploader {
                 stopMonitoring();
                 return;
             case "failed":
-                updateUIError("The processing of this file failed." + (eventName ? " Note: analysis in progress..":""))
-                if (!eventName) stopMonitoring();
+                updateUIError("The processing of this file failed. " + (eventName ? `Analysis ${eventName} aborted.`:""));
+                if (!eventName || eventName !== "mirax-importer") stopMonitoring();
                 return;
             default:
                 updateUIError("Unknown error. Some processes might have finished.", data.message);
