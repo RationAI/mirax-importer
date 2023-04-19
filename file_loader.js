@@ -567,6 +567,7 @@ class Uploader {
                 if (!eventName || eventName !== "mirax-importer") stopMonitoring();
                 return;
             default:
+                //todo allow custom finish meta
                 updateUIError("Unknown error. Some processes might have finished.", data.message);
                 console.error(`Invalid server response <code>Unknown file status ${data['status']}</code>`, data);
                 stopMonitoring();

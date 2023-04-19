@@ -23,25 +23,30 @@ function output($msg) {
     echo "$event_name:$session_id: $msg\n";
 }
 
-function process($file_name, $file_path, $biopsy, $algorithm_name, $algorithm, $session_id) {
-    //todo in future flexible way of sending algo params here
-    global $server_root;
-
-    //inspect file path, search for mirax file name
-    //exec busy-waiting shell analysis!
-    return shell_exec("$server_root/analysis_job.sh 2>&1 '$file_name' '$file_path' '$biopsy' '$algorithm_name' '$algorithm' '$session_id'");
-}
 
 output("Running analysis job session: Algorithm configuration {$argv[2]}");
 //todo update also stuff that has status processing X days before
 
 require_once XO_DB_ROOT . "include.php";
 $out = xo_files_by_id($file_id_list);
+
+function process($file_name, $file_path, $algorithm_name, $algorithm) {
+    global $server_root, $analysis_event_name;
+    xo_file_name_event("$file_name", $analysis_event_name($algorithm_name), "processing");
+
+    //index.php enpoint
+    $protocol = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+    $api = $protocol . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . 'index.php';
+
+    //job.py run|status slide algorithm serviceAPI, busy waiting (immediately exits, job is submitted)
+    //todo add event only if exit is successful
+    return shell_exec("$server_root/analysis_job_api.py run '$file_path/$file_name' '$algorithm' '$api' 2>&1");
+}
+
 foreach ($out as $row) {
     try {
         output("File " . $row["name"]);
-        output(process($row["name"], file_path_from_db_record($row), $row["biopsy"],
-            $algorithm["name"], $algorithm_serialized, $session_id));
+        output(process($row["name"], file_path_from_db_record($row), $algorithm["name"], $algorithm_serialized));
     } catch (Exception $e) {
         output("Processing failed for file " . $row["file"]);
     }

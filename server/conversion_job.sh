@@ -27,12 +27,8 @@ fi
 
 #extract label image, ignore failure
 if [ ! -z $7 ] || [ ! -f "$3/m_label.png" ]; then
-  #does not load automatically, force
-  source /var/www/.bashrc
   echo "$4:$6 getting label..."
-  micromamba activate mirax_venv
   python3 mirax_extract_meta/label_extractor.py "$SOURCE_FILE" "$3/m_label.png"
-  micromamba deactivate
 else
   echo "$4:$6 label extraction skipped!"
 fi

@@ -172,6 +172,22 @@ switch ($_POST["command"]) {
         send_response(array("Upload finished for $name"));
     }
 
+    case "algorithmEvent": {
+        $name = trim($_POST["fileName"]);
+        $event = trim($_POST["event"]);
+        $status = trim($_POST["status"]);
+        if (!$name || !$event) {
+            error("Invalid event!");
+        }
+
+        $data = strpos($status, "error") === false ? "" : "";
+        global $analysis_event_name;
+        require_once XO_DB_ROOT . "include.php";
+        xo_file_name_event(tiff_fname_from_mirax($name), $event, $data);
+
+        send_response();
+    }
+
     case "clean": {
         global $safe_mode;
         if ($safe_mode) {
