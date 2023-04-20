@@ -11,3 +11,4 @@ $analysis_event_name=function ($event) {
     return "histopipe_$event";
 };
 $mirax_pattern = "/^(.*([0-9]{4})[_-]([0-9]+).*)\.mrxs?$/i";
+$server_api_url = "http://localhost:8081/importer/server";

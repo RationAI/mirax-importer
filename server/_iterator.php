@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+require_once "config.php";
 
 function file_scan(string   $path,
                    string   $rel_start,
@@ -72,9 +73,7 @@ function db_file_scan_inspector(string $root, string $fname_pattern, callable $i
 }
 
 function mrxs_inspector(string $root) {
-    require_once "config.php";
     require_once "functions.php";
-
     require_once XO_DB_ROOT . "include.php";
     global $mirax_pattern;
 
@@ -87,6 +86,7 @@ function mrxs_inspector(string $root) {
             if (!$file) {
                 //inserted because if exists we return the record
                 global $log_file, $server_root;
+                echo "Processing $item_name...\n";
                 file_uploaded(
                     $log_file,
                     $server_root,
@@ -97,6 +97,8 @@ function mrxs_inspector(string $root) {
                     $matches[1],
                     -1
                 );
+            } else {
+                echo "Skipped $item_name.\n";
             }
         },
         fn($file, $dir) => str_ends_with($file, ".mrxs"),
@@ -107,5 +109,6 @@ function mrxs_inspector(string $root) {
 global $safe_mode, $upload_root;
 if ($safe_mode) {
     error("Not allowed in safe mode!");
+    exit;
 }
 mrxs_inspector($upload_root);

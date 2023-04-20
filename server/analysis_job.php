@@ -31,16 +31,22 @@ require_once XO_DB_ROOT . "include.php";
 $out = xo_files_by_id($file_id_list);
 
 function process($file_name, $file_path, $algorithm_name, $algorithm) {
-    global $server_root, $analysis_event_name;
-    xo_file_name_event("$file_name", $analysis_event_name($algorithm_name), "processing");
-
-    //index.php enpoint
-    $protocol = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
-    $api = $protocol . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . 'index.php';
+    global $server_root, $analysis_event_name, $server_api_url;
 
     //job.py run|status slide algorithm serviceAPI, busy waiting (immediately exits, job is submitted)
-    //todo add event only if exit is successful
-    return shell_exec("$server_root/analysis_job_api.py run '$file_path/$file_name' '$algorithm' '$api' 2>&1");
+    $execs = exec("$server_root/analysis_job_api.py run '$file_path/$file_name' '$algorithm' '$server_api_url/index.php' 2>&1",
+        $retArr, $retVal);
+    echo implode("\n", $retArr);
+    if ($execs) {
+        if ($retVal === 0) {
+            xo_file_name_event("$file_name", $analysis_event_name($algorithm_name), "processing");
+            echo "Job started...";
+        } else {
+            echo "Failed to initialize the job! Error '$retVal'.";
+        }
+    } else {
+        echo "Failed to call the job!";
+    }
 }
 
 foreach ($out as $row) {
