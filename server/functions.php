@@ -35,13 +35,13 @@ function file_path_from_year_biopsy($filename_no_suffix, $year, $biopsy, $is_mir
     else return "$yp$bp$filename_no_suffix/$filename_no_suffix/";
 }
 
-function file_path_from_db_record($record) {
+function mirax_path_from_db_record($record) {
     $file = $record["name"];
     if (preg_match("/^(.*)\.tiff?$/i", $file, $match)) {
         $file = $match[1];
     }
-    $biopsy = file_path_biopsy($record["biopsy"]);
-    return "{$record["root"]}$biopsy$file";
+    return file_path_from_year_biopsy(
+        pathinfo($file, PATHINFO_FILENAME), $record["root"], $record["biopsy"], true);
 }
 
 function get_upload_path($name, $year, $biopsy, $is_mirax) {
@@ -60,19 +60,19 @@ function clean_path($path) {
     return str_replace('\\', '/', $path);
 }
 
+function _xo_get_err_last() {
+    $err = error_get_last();
+    if (is_array($err)) {
+        return $err["message"] ?? implode(" | ", $err);
+    }
+    return "Unknown error: get_err_last.";
+}
+
 function make_dir($path) {
     if (is_dir($path)) return "";
 
-    function get_err() {
-        $err = error_get_last();
-        if (is_array($err)) {
-            return $err["message"] ?? implode(" | ", $err);
-        }
-        return "Unknown error: mkdir.";
-    }
-
-    if (!@mkdir($path, 0775, true)) return get_err();
-    if (!@chmod($path, 0775)) return get_err(); //todo necessary?
+    if (!@mkdir($path, 0775, true)) return _xo_get_err_last();
+    if (!@chmod($path, 0775)) return _xo_get_err_last(); //todo necessary?
     return "";
 }
 
@@ -89,7 +89,7 @@ function target_upload_path($filename, $relative_path, $path_processed=false) {
 }
 
 function upload_file($temp, $target_file_name, $directory, callable $_die) {
-    ensure_accessible($target_file_name, $directory, $_die);
+    ensure_accessible($directory, $_die);
     $target = "$directory/$target_file_name";
 
     //non-empty
@@ -104,7 +104,7 @@ function upload_file($temp, $target_file_name, $directory, callable $_die) {
 }
 
 function move_file($temp, $target_file_name, $directory, callable $_die) {
-    ensure_accessible($target_file_name, $directory, $_die);
+    ensure_accessible($directory, $_die);
     $target = "$directory/$target_file_name";
     if (rename($temp, $target)) {
         @chmod($target, 0640);
@@ -113,7 +113,7 @@ function move_file($temp, $target_file_name, $directory, callable $_die) {
     return false;
 }
 
-function ensure_accessible($target_file_name, $directory, callable $_die) {
+function ensure_accessible($directory, callable $_die) {
     global $upload_root;
     if (!is_writable($upload_root)) {
         if (!is_dir($upload_root) && !mkdir($upload_root, 0775, true)) {

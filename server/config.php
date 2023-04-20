@@ -10,5 +10,7 @@ $analysis_event_name=function ($event) {
     if ($event === "mirax-importer") return $event;
     return "histopipe_$event";
 };
-$mirax_pattern = "/^(.*([0-9]{4})[_-]([0-9]+).*)\.mrxs?$/i";
+//must have three groups: 1) capture file name without extension 2) capture year 3) capture biopsy
+$mirax_pattern = "/^(.*?([0-9]{4})[_-]([0-9]+).*)\.mrxs$/i";
+//the server URL where it is deployed ($server_api_url/config.php is this file)
 $server_api_url = "http://localhost:8081/importer/server";

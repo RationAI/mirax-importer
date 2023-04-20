@@ -73,7 +73,7 @@ spec:
           medium: Memory
           sizeLimit: 32Gi
 """
-    job = job_template.format(name=name, pvc=pvc, slide=slide)
+    job = job_template.format(name=name, pvc=pvc, slide=slide, algorithm=algorithm, service=service)
     batch_api = client.BatchV1Api()
     batch_api.create_namespaced_job(namespace, body=yaml.safe_load(job))
 

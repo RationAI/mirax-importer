@@ -6,6 +6,7 @@ function file_scan(string   $path,
                    string   $rel_start,
                    callable $callback,
                    callable $filename_predicate,
+                   bool     $exit_recurse=false,
                    int      $max_recursion=-1,
                    //args used in recurring calls
                    int      $recursion_count=0,
@@ -27,7 +28,7 @@ function file_scan(string   $path,
             $valid_file = true;
             $recursion++;
 
-            if ($filename_predicate($file, $new_path)) {
+            if (!$exit_recurse && $filename_predicate($file, $new_path, $valid_dir)) {
                 if ($valid_file && is_file($new_path)) {
                     $callback(true, $file, $fname_append, $rel_start);
                 } else if ($valid_dir) {
@@ -38,9 +39,18 @@ function file_scan(string   $path,
             if ($valid_dir) {
                 file_scan($new_path,
                     $rel_start === '' ? $file : $rel_start . '/' . $file,
-                    $callback, $filename_predicate,
+                    $callback, $filename_predicate, $exit_recurse,
                     $max_recursion, $recursion, "$fname_append/$file");
             }
+
+            if ($exit_recurse && $filename_predicate($file, $new_path, $valid_dir)) {
+                if ($valid_file && is_file($new_path)) {
+                    $callback(true, $file, $fname_append, $rel_start);
+                } else if ($valid_dir) {
+                    $callback(false, $file, $fname_append, $rel_start);
+                }
+            }
+
         }
     }
 }
@@ -68,20 +78,59 @@ function db_file_scan_inspector(string $root, string $fname_pattern, callable $i
             }
         }
     };
-    if ($predicate === null) $predicate = fn($a, $b) => true;
-    file_scan($root, "",  $clbck, $predicate, 9999);
+    $pred = fn($f, $path, $is_dir) => !$is_dir && $predicate($f, $path);
+    file_scan($root, "",  $clbck, $pred, false, 9999);
+}
+
+function empty_folder_inspector(string $root) {
+    $clbck = function ($is_file, $item_name, $rel_path, $start_path) {
+        global $upload_root;
+        $dir = $upload_root.$rel_path."/".$item_name;
+        echo "Scan $dir";
+        $files = scandir($dir);
+        if(count($files) == 3 && is_file("$dir/.pull")) {
+            unlink("$dir/.pull");
+            rmdir($dir);
+            echo "Removing empty directory with pull item $dir\n";
+        } else if(count($files) == 2) {
+            rmdir($dir);
+            echo "Removing empty directory $dir\n";
+        } else echo " Skipped - has " . count($files) . "\n";
+    };
+    $pred = fn($f, $path, $is_dir) => $is_dir;
+    file_scan($root, "",  $clbck, $pred, true, 9999);
 }
 
 function mrxs_inspector(string $root) {
-    require_once "functions.php";
-    require_once XO_DB_ROOT . "include.php";
     global $mirax_pattern;
 
     db_file_scan_inspector($root, $mirax_pattern,
         function ($is_file, $item_name, $rel_path, $start_path, $matches) {
             global $upload_root;
             $fname = tiff_fname_from_mirax($item_name);
-            $file = xo_insert_or_ignore_file($fname, -1, "uploaded", $matches[1], $matches[2]);
+            $biopsy = str_pad(intval($matches[3]), 4, '0', STR_PAD_LEFT);
+            $root = "$matches[2]/";
+
+            $path = mirax_path_from_db_record(["name"=>$fname, "root" => $root, "biopsy" => $biopsy]);
+            $real_path = $upload_root . $rel_path;
+            $target_path = $upload_root . $path;
+            if (!file_exists("$target_path/$item_name")) {
+                //bit dirty moving files, but we know only one mirax per folder exists
+                echo "File should be in $target_path, but stored in $real_path, moving...\n";
+                ensure_accessible($target_path, fn()=>exit("File stored in invalid folder, correct folder not writeable!"));
+                $objects = scandir($real_path);
+                foreach($objects as $tmp) {
+                    if ($tmp != '.' && $tmp != '..') {
+                        echo "$tmp | ";
+                        if (!rename($real_path."/".$tmp, $target_path.$tmp)) {
+                            exit("Failed to move file $target_path.$tmp. Exit.");
+                        }
+                    }
+                }
+                echo "\n";
+            }
+
+            $file = xo_insert_or_ignore_file($fname, "uploaded", $root, $biopsy);
 
             if (!$file) {
                 //inserted because if exists we return the record
@@ -92,16 +141,16 @@ function mrxs_inspector(string $root) {
                     $server_root,
                     $item_name,
                     $fname,
-                    $upload_root . $rel_path,
-                    $matches[2],
-                    $matches[1],
+                    $target_path,
+                    $biopsy,
+                    $root,
                     -1
                 );
             } else {
                 echo "Skipped $item_name.\n";
             }
         },
-        fn($file, $dir) => str_ends_with($file, ".mrxs"),
+        fn($file, $path) => str_ends_with($file, ".mrxs"),
         fn($d, $e) => print_r(["e"=>$e, "d"=>$d])
     );
 }
@@ -111,4 +160,8 @@ if ($safe_mode) {
     error("Not allowed in safe mode!");
     exit;
 }
+require_once "functions.php";
+require_once XO_DB_ROOT . "include.php";
+
 mrxs_inspector($upload_root);
+empty_folder_inspector($upload_root);

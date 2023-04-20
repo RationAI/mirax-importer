@@ -33,6 +33,11 @@ $out = xo_files_by_id($file_id_list);
 function process($file_name, $file_path, $algorithm_name, $algorithm) {
     global $server_root, $analysis_event_name, $server_api_url;
 
+    if (!file_exists("$file_path/$file_name")) {
+        echo "Failed to call the job! File $file_path/$file_name does not exist!\n";
+        return;
+    }
+
     //job.py run|status slide algorithm serviceAPI, busy waiting (immediately exits, job is submitted)
     $execs = exec("$server_root/analysis_job_api.py run '$file_path/$file_name' '$algorithm' '$server_api_url/index.php' 2>&1",
         $retArr, $retVal);
@@ -40,19 +45,19 @@ function process($file_name, $file_path, $algorithm_name, $algorithm) {
     if ($execs) {
         if ($retVal === 0) {
             xo_file_name_event("$file_name", $analysis_event_name($algorithm_name), "processing");
-            echo "Job started...";
+            echo "Job started...\n";
         } else {
-            echo "Failed to initialize the job! Error '$retVal'.";
+            echo "Failed to initialize the job! Error '$retVal'.\n";
         }
     } else {
-        echo "Failed to call the job!";
+        echo "Failed to call the job!\n";
     }
 }
 
 foreach ($out as $row) {
     try {
         output("File " . $row["name"]);
-        output(process($row["name"], file_path_from_db_record($row), $algorithm["name"], $algorithm_serialized));
+        output(process($row["name"], mirax_path_from_db_record($row), $algorithm["name"], $algorithm_serialized));
     } catch (Exception $e) {
         output("Processing failed for file " . $row["file"]);
     }

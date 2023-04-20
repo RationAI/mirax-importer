@@ -140,18 +140,20 @@ switch ($_POST["command"]) {
     }
 
     case "fileUploadBulkFinished": {
-        $biopsy = trim($_POST["biopsy"]);
+        $biopsy = intval(trim($_POST["biopsy"]));
         $year = trim($_POST["year"]);
         $name = trim($_POST["fileName"]);
-        if (!$biopsy || !$year || !$name) {
-            error("Cannot process files - fileUploadBulkFinished failed: missing metadata.");
+        $biopsy = str_pad($biopsy, 4, '0', STR_PAD_LEFT);
+
+        if (!$biopsy || strlen($biopsy) != 4 || !$year || !$name) {
+            error("Cannot process files - fileUploadBulkFinished failed: missing or invalid metadata.");
         }
 
         $year = clean_path($year);
         $name = clean_path($name);
         try {
             require_once XO_DB_ROOT . "include.php";
-            //todo request_id not used check its use
+            if ($biopsy)
             $file = xo_insert_or_ignore_file(tiff_fname_from_mirax($name), "uploaded", file_path_year($year), $biopsy);
             if ($file != null) error("Uploaded file present in the database: '$name'!", $file);
         } catch (Exception $e) {
