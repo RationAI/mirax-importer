@@ -16,14 +16,28 @@ function tiff_fname_from_mirax($mirax) {
     return "$mirax.tiff";
 }
 
+function mirax_fname_from_tiff($tiff) {
+    if (preg_match("/^(.*)\.tiff?$/i", $tiff, $match)) {
+        return $match[1];
+    }
+    if (str_ends_with($tiff, ".mrxs")) {
+        return $tiff;
+    }
+    throw new Exception("File is not a mirax file! $tiff");
+}
+
 function file_path_year($year) {
+    if (str_ends_with($year, "/")) return $year;
     return "$year/";
 }
 
 function file_path_biopsy($biopsy) {
-    $pos = 1; //first two letters prefix
-    $prefix = substr($biopsy, 0, $pos+1);
-    $suffix = substr($biopsy, $pos+1);
+    if (is_string($biopsy)) $biopsy = intval(trim($biopsy));
+    $biopsy = str_pad($biopsy, 4, '0', STR_PAD_LEFT);
+
+    $suffix_len = 2; //suffix is last two digits
+    $prefix = substr($biopsy, 0, strlen($biopsy)-$suffix_len);
+    $suffix = substr($biopsy, -$suffix_len);
     return "$prefix/$suffix/";
 }
 
@@ -36,10 +50,7 @@ function file_path_from_year_biopsy($filename_no_suffix, $year, $biopsy, $is_mir
 }
 
 function mirax_path_from_db_record($record) {
-    $file = $record["name"];
-    if (preg_match("/^(.*)\.tiff?$/i", $file, $match)) {
-        $file = $match[1];
-    }
+    $file = mirax_fname_from_tiff($record["name"]);
     return file_path_from_year_biopsy(
         pathinfo($file, PATHINFO_FILENAME), $record["root"], $record["biopsy"], true);
 }

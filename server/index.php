@@ -140,12 +140,11 @@ switch ($_POST["command"]) {
     }
 
     case "fileUploadBulkFinished": {
-        $biopsy = intval(trim($_POST["biopsy"]));
+        $biopsy = $_POST["biopsy"];
         $year = trim($_POST["year"]);
         $name = trim($_POST["fileName"]);
-        $biopsy = str_pad($biopsy, 4, '0', STR_PAD_LEFT);
 
-        if (!$biopsy || strlen($biopsy) != 4 || !$year || !$name) {
+        if (!$biopsy || !$year || !$name) {
             error("Cannot process files - fileUploadBulkFinished failed: missing or invalid metadata.");
         }
 
@@ -177,17 +176,26 @@ switch ($_POST["command"]) {
     case "algorithmEvent": {
         $name = trim($_POST["fileName"]);
         $event = trim($_POST["event"]);
-        $status = trim($_POST["status"]);
-        if (!$name || !$event) {
-            error("Invalid event!");
+        $status = trim($_POST["payload"]);
+
+        if (strpos($status, "processing") !== false) {
+            $data = "processing";
+        } else if (strpos($status, "error") !== false) {
+            $data = "processing-finished";
+        } else {
+            $data = "failed";
         }
 
-        $data = strpos($status, "error") === false ? "" : "";
-        global $analysis_event_name;
-        require_once XO_DB_ROOT . "include.php";
-        xo_file_name_event(tiff_fname_from_mirax($name), $event, $data);
-
-        send_response();
+        try {
+            global $analysis_event_name;
+            require_once XO_DB_ROOT . "include.php";
+            xo_file_name_event(tiff_fname_from_mirax($name), $event, $data);
+            send_response();
+        } catch (Exception $e) {
+            global $upload_root;
+            $message = $e->getMessage();
+            exec("echo 'Failed to record status $name $event $status ($message)\n' >> $upload_root/.update_event.log");
+        }
     }
 
     case "clean": {

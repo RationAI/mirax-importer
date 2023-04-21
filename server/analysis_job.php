@@ -31,35 +31,34 @@ require_once XO_DB_ROOT . "include.php";
 $out = xo_files_by_id($file_id_list);
 
 function process($file_name, $file_path, $algorithm_name, $algorithm) {
-    global $server_root, $analysis_event_name, $server_api_url;
+    global $upload_root, $server_root, $analysis_event_name, $server_api_url;
 
-    if (!file_exists("$file_path/$file_name")) {
-        echo "Failed to call the job! File $file_path/$file_name does not exist!\n";
+    if (!file_exists("$upload_root$file_path$file_name")) {
+        output("Failed to call the job! File $file_path$file_name does not exist!");
         return;
     }
+    output("$server_root/analysis_job_api.py run '$file_path$file_name' '$algorithm' '$server_api_url/index.php' 2>&1");
 
     //job.py run|status slide algorithm serviceAPI, busy waiting (immediately exits, job is submitted)
-    $execs = exec("$server_root/analysis_job_api.py run '$file_path/$file_name' '$algorithm' '$server_api_url/index.php' 2>&1",
+    $execs = exec("$server_root/analysis_job_api.py run '$file_path$file_name' '$algorithm' '$server_api_url/index.php' 2>&1",
         $retArr, $retVal);
     echo implode("\n", $retArr);
-    if ($execs) {
+    if ($execs !== false) {
         if ($retVal === 0) {
-            xo_file_name_event("$file_name", $analysis_event_name($algorithm_name), "processing");
-            echo "Job started...\n";
+            output("Job started...");
         } else {
-            echo "Failed to initialize the job! Error '$retVal'.\n";
+            output("Failed to initialize the job! Error '$retVal'.");
         }
     } else {
-        echo "Failed to call the job!\n";
+        output("Failed to call the job!");
     }
 }
 
 foreach ($out as $row) {
     try {
-        output("File " . $row["name"]);
-        output(process($row["name"], mirax_path_from_db_record($row), $algorithm["name"], $algorithm_serialized));
+        process(mirax_fname_from_tiff($row["name"]), mirax_path_from_db_record($row), $algorithm["name"], $algorithm_serialized);
     } catch (Exception $e) {
-        output("Processing failed for file " . $row["file"]);
+        output("Processing failed for file " . $row["name"]);
     }
 }
 ?>

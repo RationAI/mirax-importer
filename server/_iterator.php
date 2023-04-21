@@ -101,6 +101,36 @@ function empty_folder_inspector(string $root) {
     file_scan($root, "",  $clbck, $pred, true, 9999);
 }
 
+function file_name_fixer(string $root) {
+    $clbck = function ($is_file, $item_name, $rel_path, $start_path) {
+        global $upload_root;
+
+        try {
+            if (preg_match("/^(.*?)([0-9]{4})([_-])([0-9]+)(.*)$/i", $item_name, $matches, PREG_UNMATCHED_AS_NULL)) {
+                echo "MATCH $item_name\n";
+                $real_path = $upload_root . $rel_path . "/" . $item_name;
+
+                $biopsy = $matches[4];
+                if (is_string($biopsy)) $biopsy = intval(trim($biopsy));
+                $biopsy = str_pad($biopsy, 4, '0', STR_PAD_LEFT);
+
+                $target_path = $upload_root . $rel_path . "/" . $matches[1] . $matches[2] . $matches[3] . $biopsy  . $matches[5];
+                echo "NNOP $real_path -> $target_path\n\n";
+//                if (!rename($real_path."/".$tmp, $target_path.$tmp)) {
+//                    exit("Failed to move file $target_path.$tmp. Exit.");
+//                }
+            } else if (preg_match('', $rel_path, $matches, PREG_UNMATCHED_AS_NULL)) {
+
+            }
+        } catch (Exception $e) {
+            print_r("File $item_name processing exception!");
+            print_r($e);
+        }
+    };
+    $pred = fn($f, $path, $is_dir) => $is_dir || str_ends_with($f, ".mrxs");
+    file_scan($root, "",  $clbck, $pred, true, 9999);
+}
+
 function mrxs_inspector(string $root) {
     global $mirax_pattern;
 
@@ -108,8 +138,8 @@ function mrxs_inspector(string $root) {
         function ($is_file, $item_name, $rel_path, $start_path, $matches) {
             global $upload_root;
             $fname = tiff_fname_from_mirax($item_name);
-            $biopsy = str_pad(intval($matches[3]), 4, '0', STR_PAD_LEFT);
-            $root = "$matches[2]/";
+            $biopsy = $matches[3];
+            $root = file_path_year($matches[2]);
 
             $path = mirax_path_from_db_record(["name"=>$fname, "root" => $root, "biopsy" => $biopsy]);
             $real_path = $upload_root . $rel_path;
@@ -163,5 +193,6 @@ if ($safe_mode) {
 require_once "functions.php";
 require_once XO_DB_ROOT . "include.php";
 
-mrxs_inspector($upload_root);
-empty_folder_inspector($upload_root);
+//mrxs_inspector($upload_root);
+//empty_folder_inspector($upload_root);
+file_name_fixer($upload_root);

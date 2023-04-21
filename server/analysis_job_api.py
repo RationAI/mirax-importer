@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 from kubernetes import config, client
+from pathlib import Path
+from datetime import datetime
 import os
 import yaml
 import sys
@@ -20,13 +22,19 @@ service=sys.argv[4]
 # data mount point in the job container, irrelevant of what importer uses
 mntpath='/mnt/data'
 
+slide_path=Path(slide).parent
+log_name=datetime.now().strftime("%Y_%m_%d")
+log_path=f"{mntpath}/{slide_path}/logs"
+log_file=f"{log_path}/{log_name}.log"
+
+
 pvc = 'pvc-xopat-demo'
 
 # init config
 config.load_incluster_config()
 
-def create_job(name, slide, algorithm, service):
-    job_template = """\
+def create_job(name, slide, algorithm, service, log_path, log_file):
+    job = f"""\
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -45,7 +53,10 @@ spec:
       - name: snakemake-job
         image: cerit.io/xopat/histopat:v0.1
         imagePullPolicy: Always
-        command: ['snakemake', 'target_vis', '--cores', '4', '--config', 'slide_fp={slide}', '--config', 'algorithm={algorithm}', '--config', 'endpoint={service}']
+        command: ['bash']
+        args:
+        - -c
+        - mkdir -p {log_path} && snakemake target_vis --cores 4 --config slide_fp='{slide}' algorithm='{algorithm}' endpoint='{service}' >> "{log_file}" 2>&1
         securityContext:
           runAsUser: 33
           runAsGroup: 33
@@ -73,7 +84,6 @@ spec:
           medium: Memory
           sizeLimit: 32Gi
 """
-    job = job_template.format(name=name, pvc=pvc, slide=slide, algorithm=algorithm, service=service)
     batch_api = client.BatchV1Api()
     batch_api.create_namespaced_job(namespace, body=yaml.safe_load(job))
 
@@ -90,7 +100,7 @@ name = slide
 name = re.sub("(\/)|(_)|(.mrxs)", "", name)
 
 if command == 'run':
-   create_job(name, f"{mntpath}/{slide}", algorithm, service)
+   create_job(name, f"{mntpath}/{slide}", algorithm, service, log_path, log_file)
    exit(0)
 
 if command == 'status':
