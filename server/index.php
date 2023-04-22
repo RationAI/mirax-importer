@@ -79,9 +79,7 @@ switch ($_POST["command"]) {
 
         $name = clean_path($file_data["name"]);
         $is_mirax = str_ends_with($name, ".mrxs");
-        $mirax_name = pathinfo($mirax_name, PATHINFO_FILENAME);
-
-        $target_path = target_upload_dir(file_path_from_year_biopsy($mirax_name, $year, $biopsy, $is_mirax));
+        $target_path = absolute_path_from_records($mirax_name, $year, $biopsy, $is_mirax, true);
         $error_handler = function ($title) {
             echo json_encode((object)array(
                 "status" => "error",
@@ -125,7 +123,9 @@ switch ($_POST["command"]) {
         if (isset($file["id"])) {
             send_response(true);
         }
-        send_response(file_exists(get_upload_path($name, $year, $biopsy, true)));
+        send_response(file_exists(
+            absolute_path_from_records($name, $year, $biopsy, str_ends_with($name, ".mrxs")) . "/" . $name
+        ));
     }
 
     case "checkFileStatus": {
@@ -150,22 +150,27 @@ switch ($_POST["command"]) {
 
         $year = clean_path($year);
         $name = clean_path($name);
+        $tiff_name = tiff_fname_from_mirax($name);
+        $filepath = absolute_path_from_records($name, $year, $biopsy, true, false);
+        $upload_filepath = absolute_path_from_records($name, $year, $biopsy, true, true);
         try {
+            if (!move_item($upload_filepath, $filepath, 0755)) {
+                error("Uploaded file cannot be moved to the final destination!");
+            }
+
             require_once XO_DB_ROOT . "include.php";
-            if ($biopsy)
-            $file = xo_insert_or_ignore_file(tiff_fname_from_mirax($name), "uploaded", file_path_year($year), $biopsy);
+            $file = xo_insert_or_ignore_file($tiff_name, "uploaded", file_path_year($year), $biopsy);
             if ($file != null) error("Uploaded file present in the database: '$name'!", $file);
         } catch (Exception $e) {
             error("File uploaded but the system failed to create an upload record: '$name'!", $e);
         }
-        $name_only = pathinfo($name, PATHINFO_FILENAME);
         global $log_file, $server_root;
         file_uploaded(
             $log_file,
             $server_root,
             $name,
-            tiff_fname_from_mirax($name),
-            target_upload_dir(file_path_from_year_biopsy($name_only, $year, $biopsy, true)),
+            $tiff_name,
+            $filepath,
             $biopsy,
             $year,
             time()
@@ -196,6 +201,7 @@ switch ($_POST["command"]) {
             $message = $e->getMessage();
             exec("echo 'Failed to record status $name $event $status ($message)\n' >> $upload_root/.update_event.log");
         }
+        error("Failed to update file status!");
     }
 
     case "clean": {
@@ -203,11 +209,12 @@ switch ($_POST["command"]) {
         if ($safe_mode) {
             error("Not allowed in safe mode!");
         }
-        erase_dirs();
-        require_once XO_DB_ROOT . "include.php";
-        xo_files_erase();
-
-        send_response();
+        error("File removing disabled");
+//        erase_dirs();
+//        require_once XO_DB_ROOT . "include.php";
+//        xo_files_erase();
+//
+//        send_response();
     }
 
     default: error("Invalid command: no-op.");

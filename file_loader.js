@@ -553,6 +553,7 @@ class Uploader {
                 stopMonitoring();
                 break;
             case "not-yet-processed":
+                //todo if upload fails this shows waiting in queue wrong messsages
                 updateUI("File not processed. It might be waiting in a queue.", false);
                 break;
             case "processing":
@@ -566,6 +567,7 @@ class Uploader {
                 updateUIError("The processing of this file failed. " + (eventName ? `Analysis ${eventName} aborted.`:""));
                 if (!eventName || eventName !== "mirax-importer") stopMonitoring();
                 return;
+            case "error":
             default:
                 //todo allow custom finish meta
                 updateUIError("Unknown error. Some processes might have finished.", data.message);

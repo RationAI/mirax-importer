@@ -41,11 +41,11 @@ function file_path_biopsy($biopsy) {
     return "$prefix/$suffix/";
 }
 
-function file_path_from_year_biopsy($filename_no_suffix, $year, $biopsy, $is_mirax) {
+function file_path_from_year_biopsy($filename_no_suffix, $year, $biopsy, $is_for_mirax) {
     $yp = file_path_year($year);
     $bp = file_path_biopsy($biopsy);
 
-    if ($is_mirax) return "$yp$bp$filename_no_suffix/";
+    if ($is_for_mirax) return "$yp$bp$filename_no_suffix/";
     else return "$yp$bp$filename_no_suffix/$filename_no_suffix/";
 }
 
@@ -53,12 +53,6 @@ function mirax_path_from_db_record($record) {
     $file = mirax_fname_from_tiff($record["name"]);
     return file_path_from_year_biopsy(
         pathinfo($file, PATHINFO_FILENAME), $record["root"], $record["biopsy"], true);
-}
-
-function get_upload_path($name, $year, $biopsy, $is_mirax) {
-    $name_only = pathinfo($name, PATHINFO_FILENAME);
-    $target_path = file_path_from_year_biopsy($name_only, $year, $biopsy, $is_mirax);
-    return target_upload_path($name, $target_path);
 }
 
 function clean_path($path) {
@@ -79,24 +73,30 @@ function _xo_get_err_last() {
     return "Unknown error: get_err_last.";
 }
 
-function make_dir($path) {
+function make_dir($path, $perms=0775) {
     if (is_dir($path)) return "";
 
-    if (!@mkdir($path, 0775, true)) return _xo_get_err_last();
-    if (!@chmod($path, 0775)) return _xo_get_err_last(); //todo necessary?
+    if (!@mkdir($path, $perms, true)) return _xo_get_err_last();
+    if (!@chmod($path, $perms)) return _xo_get_err_last(); //todo necessary?
     return "";
 }
 
-function target_upload_dir($relative_path, $_processed=false) {
+function relative_upload_path_to_absolute($relative_path) {
     global $upload_root;
-    if ($_processed) {
-        return $relative_path; //already processed, return as is
-    }
     return "/" . clean_path("$upload_root/$relative_path");
 }
 
-function target_upload_path($filename, $relative_path, $path_processed=false) {
-    return target_upload_dir($relative_path, $path_processed) . "/" . clean_path($filename);
+function relative_upload_path_to_temp($filename_no_suffix, $is_for_mirax) {
+    global $upload_root;
+    if (!$is_for_mirax) $filename_no_suffix = "$filename_no_suffix/$filename_no_suffix";
+    return "/" . clean_path("$upload_root/.uploads/$filename_no_suffix");
+}
+
+function absolute_path_from_records($name, $year, $biopsy, $is_for_mirax, $temp=false) {
+    $name_only = pathinfo($name, PATHINFO_FILENAME);
+    if ($temp) return relative_upload_path_to_temp($name_only, $is_for_mirax);
+    $target_path = file_path_from_year_biopsy($name_only, $year, $biopsy, $is_for_mirax);
+    return relative_upload_path_to_absolute($target_path);
 }
 
 function upload_file($temp, $target_file_name, $directory, callable $_die) {
@@ -108,20 +108,30 @@ function upload_file($temp, $target_file_name, $directory, callable $_die) {
     if (mb_strlen($target,"UTF-8") > 225) $_die("File name destination too big! $target!");
 
     if (move_uploaded_file($temp, $target)) {
-        @chmod($target, 0640);
+        @chmod($target, 0644);
         return true;
     }
     return false;
 }
 
-function move_file($temp, $target_file_name, $directory, callable $_die) {
-    ensure_accessible($directory, $_die);
-    $target = "$directory/$target_file_name";
+function move_item($temp, $target, $perms=null) {
+    if (file_exists($target)) return false;
+
+    $parent = dirname($target);
+    if (!file_exists($parent)) {
+        $dir_err = make_dir($parent);
+        if ($dir_err != "") return false;
+    }
+
     if (rename($temp, $target)) {
-        @chmod($target, 0640);
+        @chmod($target, $perms !== null ? $perms : (is_file($target) ? 0644 : 0755));
         return true;
     }
     return false;
+}
+
+function _is_dir_empty($dir) {
+    return (count(scandir($dir)) == 2);
 }
 
 function ensure_accessible($directory, callable $_die) {
@@ -142,6 +152,11 @@ if (! function_exists('str_ends_with')) {
     {
         $needle_len = strlen($needle);
         return ($needle_len === 0 || 0 === substr_compare($haystack, $needle, - $needle_len));
+    }
+}
+if (!function_exists('str_starts_with')) {
+    function str_starts_with($haystack, $needle) {
+        return (string)$needle !== '' && strncmp($haystack, $needle, strlen($needle)) === 0;
     }
 }
 

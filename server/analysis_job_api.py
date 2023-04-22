@@ -96,8 +96,7 @@ def status_job(name):
      print("Job not found")
      pass
 
-name = slide
-name = re.sub("(\/)|(_)|(.mrxs)", "", name)
+name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)", "", slide.lower())
 
 if command == 'run':
    create_job(name, f"{mntpath}/{slide}", algorithm, service, log_path, log_file)
