@@ -394,12 +394,30 @@ class Uploader {
         });
     }
 
+    /**
+     * Submit a FORM job - send something via form upload
+     * @param command
+     * @param opts
+     * @param withFileData
+     */
     formSubmit(command, opts=undefined, withFileData=true) {
         if (opts) this.formFill(opts, withFileData);
 
         const submit = UI.formSubmitButton;
         submit.value = command;
         UI.formSubmitButton.click();
+    }
+
+    /**
+     * Submit a generic job - do something between uploads
+     * @param clbck job to execute
+     * @param arg custom argument for the job
+     * the job is called as clbck(resolve, reject, arg)
+     */
+    promiseSubmit(clbck, arg) {
+        const resolve = this._uploadStep.bind(this),
+            reject = this._uploadBulkStep.bind(this, false);
+        clbck(resolve, reject, arg);
     }
 
     //html
@@ -409,7 +427,7 @@ class Uploader {
 <div id="bulk-element-${index}" class="mt-1 mx-1">
 <span class="m-2">Waiting in queue</span>
 </div>
-<code id="bulk-checksum-${index}" class="my-2 pl-3 d-block">MD5 Checksum: ${bulk.checksum || "not verified."}</code>
+<code id="bulk-checksum-${index}" class="my-2 pl-3 d-block">MD5 Checksum: ${bulk.checksum || "not available."}</code>
 <div id="bulk-error-${index}" class="mt-1 mx-1"></div>
 </div>`);
     }
@@ -671,12 +689,8 @@ class Uploader {
         return this._uploadBulkStep();
     }
 
-    startBulkUpload(verifyChecksumFinished=true) {
+    startBulkUpload(waitsForMd5=false) {
         const {bulkList, monitorOnly} = this._sessionReady;
-        if (verifyChecksumFinished && !this.checksumFinished(bulkList)) {
-            alert("Checksum computation still not finished, please start uploading after checksums are computed.");
-            return;
-        }
 
         delete this._sessionReady;
         $(UI.progress).html("");
@@ -697,6 +711,7 @@ class Uploader {
             }
 
             const bulkData = bulk.data;
+            const _this = this;
 
             for (let j = 0; j < bulkData.length; j++) {
                 const elem = bulkData[j];
@@ -767,6 +782,20 @@ class Uploader {
                 year: targetElem.year,
                 fileName: targetElem.fileName,
             };
+
+            if (waitsForMd5) {
+                //wait for
+                bulk.jobList.unshift(this.promiseSubmit.bind(this, (resolve, reject, data) => {
+                    //if true, run the job
+                    if (data.md5finished === true) resolve();
+                    else if (data.md5finished === false) reject();
+                    else {
+                        _this.updateBulkElementChecksum(bulk.index, "upload will start shortly, waiting for md5...");
+                        data.onfinish = resolve;
+                        data.onfail = reject;
+                    }
+                }, bulk));
+            }
         }
 
         this._joblist = bulkList;
@@ -834,7 +863,6 @@ class Uploader {
 
     middleStepVerifyParsedFiles() {
         const data = ["<h1 class='f2-light'>Verification Step</h1><p>Please verify that all file names are valid, i.e. year and biopsy numbers are recognized correctly and files are complete.</p><br>"];
-        const _this = this;
 
         function printTitleMeta(item) {
             return `&emsp;<span style="font-size: 12pt !important;">${item.year || '<span style="color: var(--color-text-danger)">unknown</span>'}  |  ${item.biopsy || '<span style="color: var(--color-text-danger)">unknown</span>'}</span>`;
@@ -875,22 +903,20 @@ be uploaded. Biopsy <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b><
         btn.id = "mid-step-checksum-verify-upload";
         btn.innerText = "Upload + auto Checksum Verification (slower)";
         UI.progress.appendChild(btn);
-        this.checksumFinished = (bulkList) => true; //rewritten if started
     }
 
     middleStepRequireCheckSumCheck() {
         const {bulkList} = this._sessionReady;
-        for (let i = 0; i < bulkList.length; i++) {
-            const bulk = bulkList[i];
-            this.computeBulkMD5(bulk);
-            this.updateBulkElementChecksum(bulk.index, "computing...");
-        }
         $("#mid-step-checksum-verify-upload").attr("disabled", true);
         $("#mid-step-verify-upload").attr("disabled", true);
-
+        const _this = this;
+        bulkList.reduce(function (previous, item) {
+            return previous.then(_ => _this.computeBulkMD5(item, "verified automatically."))
+        }, Promise.resolve());
+        this.startBulkUpload(true);
     }
 
-    computeBulkMD5(bulk) {
+    async computeBulkMD5(bulk, doneMessage) {
         //from https://stackoverflow.com/questions/39112096/calculate-md5-hash-of-a-large-file-using-javascript
         function readChunked(file, chunkCallback, endCallback) {
             var fileSize   = file.size;
@@ -946,29 +972,32 @@ be uploaded. Biopsy <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b><
             });
         }
 
-        const _this = this;
-        const doneMessage = "verified automatically.";
-        // let chunks = [];
-        this.checksumFinished = (bulkList) => bulkList.every(b => b.checksum === doneMessage); //rewritten
+        this.updateBulkElementChecksum(bulk.index, "computing...");
 
-        Promise.all(
-            bulk.data.filter(data => data.fileInfo).map(data => {
-                console.log(data);
-                return getMD5(data.fileInfo, p => console.log(p)).then(chunk => {
-                    //chunks.push(chunk);
-                    data.checksum = chunk;
-                });
-            })
-        ).then(() => {
+        try {
+            await Promise.all(
+                bulk.data.filter(data => data.fileInfo).map(data => {
+                    console.log(data);
+                    return getMD5(data.fileInfo, null).then(chunk => {
+                        //chunks.push(chunk);
+                        data.checksum = chunk;
+                    });
+                })
+            );
+
             //just compare file-wise
             //bulk.checksum = CryptoJS.MD5(chunks.join("")).toString(CryptoJS.enc.Hex);
             bulk.checksum = doneMessage;
-            _this.updateBulkElementChecksum(bulk.index, bulk.checksum);
-            const {bulkList} = _this._sessionReady;
-            if (_this.checksumFinished(bulkList)) {
-                _this.startBulkUpload(false);
-            }
-        });
 
+            if (bulk.onfinish) bulk.onfinish();
+            bulk.md5finished = true;
+            this.updateBulkElementChecksum(bulk.index, "verified automatically when uploading.");
+
+        } catch (e) {
+            this.updateBulkElementChecksum(bulk.index, "failed to compute - upload skipped.");
+            console.log("md5 fail", e);
+            if (bulk.onfail) bulk.onfail();
+            bulk.md5finished = false;
+        }
     }
 }

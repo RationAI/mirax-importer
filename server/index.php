@@ -183,9 +183,10 @@ switch ($_POST["command"]) {
         $event = trim($_POST["event"]);
         $status = trim($_POST["payload"]);
 
+        if (!str_ends_with($name, ".mrxs")) $name = "$name.mrxs";
         if (strpos($status, "processing") !== false) {
             $data = "processing";
-        } else if (strpos($status, "error") !== false) {
+        } else if (strpos($status, "error") === false) {
             $data = "processing-finished";
         } else {
             $data = "failed";
@@ -194,7 +195,7 @@ switch ($_POST["command"]) {
         try {
             global $analysis_event_name;
             require_once XO_DB_ROOT . "include.php";
-            xo_file_name_event(tiff_fname_from_mirax($name), $event, $data);
+            xo_file_name_event(tiff_fname_from_mirax($name), $analysis_event_name($event), $data);
             send_response();
         } catch (Exception $e) {
             global $upload_root;

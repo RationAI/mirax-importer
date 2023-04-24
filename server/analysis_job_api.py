@@ -51,7 +51,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: snakemake-job
-        image: cerit.io/xopat/histopat:v0.1
+        image: cerit.io/xopat/histopat:v1.1
         imagePullPolicy: Always
         command: ['bash']
         args:
