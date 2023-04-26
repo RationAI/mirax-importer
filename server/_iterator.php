@@ -106,20 +106,15 @@ function file_name_fixer(string $root) {
         global $upload_root;
 
         try {
-            if (preg_match("/^(.*?)([0-9]{4})([_-])([0-9]+)(.*)$/i", $item_name, $matches, PREG_UNMATCHED_AS_NULL)) {
+            if (preg_match("/^(.*?)([0-9]{1,4})([_-])([0-9]+)(.*)$/i", $item_name, $matches, PREG_UNMATCHED_AS_NULL)) {
                 echo "MATCH $item_name\n";
                 $real_path = $upload_root . $rel_path . "/" . $item_name;
-
                 $biopsy = $matches[4];
                 if (is_string($biopsy)) $biopsy = intval(trim($biopsy));
                 $biopsy = str_pad($biopsy, 4, '0', STR_PAD_LEFT);
-
                 $target_path = $upload_root . $rel_path . "/" . $matches[1] . $matches[2] . $matches[3] . $biopsy  . $matches[5];
-                echo "NNOP $real_path -> $target_path\n\n";
-//                if (!rename($real_path."/".$tmp, $target_path.$tmp)) {
-//                    exit("Failed to move file $target_path.$tmp. Exit.");
-//                }
-            } else if (preg_match('', $rel_path, $matches, PREG_UNMATCHED_AS_NULL)) {
+
+                throw new Exception("Implement your own iterator logics");
 
             }
         } catch (Exception $e) {
@@ -127,8 +122,8 @@ function file_name_fixer(string $root) {
             print_r($e);
         }
     };
-    $pred = fn($f, $path, $is_dir) => $is_dir || str_ends_with($f, ".mrxs");
-    file_scan($root, "",  $clbck, $pred, true, 9999);
+    $pred = fn($f, $path, $is_dir) => false;
+    file_scan($root, "",  $clbck, $pred, true, 4);
 }
 
 function mrxs_inspector(string $root) {
@@ -144,6 +139,7 @@ function mrxs_inspector(string $root) {
             $path = mirax_path_from_db_record(["name"=>$fname, "root" => $root, "biopsy" => $biopsy]);
             $real_path = $upload_root . $rel_path;
             $target_path = $upload_root . $path;
+
             if (!file_exists("$target_path/$item_name")) {
                 //bit dirty moving files, but we know only one mirax per folder exists
                 echo "File should be in $target_path, but stored in $real_path, moving...\n";
@@ -185,8 +181,9 @@ function mrxs_inspector(string $root) {
                         require_once XO_DB_ROOT . "include.php";
                         xo_file_name_event($fname, $analysis_event_name("prostate-prediction"),
                             "{\"status\":\"processing-finished\",\"__glados\":true}");
+                        echo "Vis recorded\n";
                     }
-                }
+                } else echo "NO Vis \n";
             } else {
                 echo "Skipped $item_name.\n";
             }
