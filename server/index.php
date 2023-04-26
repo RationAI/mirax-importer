@@ -48,7 +48,7 @@ function get_file_status($fname, $event) {
         //we record status as data record, the latest record tells us event status
         if (isset($data["data"])) {
             //override file.status for front-end
-            $data["status"] = $data["data"];
+            $data["status"] = json_decode($data["data"])["status"] ?? "unknown";
         }
     } else {
         $data = xo_get_file_by_name($fname);
@@ -195,7 +195,7 @@ switch ($_POST["command"]) {
         try {
             global $analysis_event_name;
             require_once XO_DB_ROOT . "include.php";
-            xo_file_name_event(tiff_fname_from_mirax($name), $analysis_event_name($event), $data);
+            xo_file_name_event(tiff_fname_from_mirax($name), $analysis_event_name($event), "{\"status\":\"$data\"}");
             send_response();
         } catch (Exception $e) {
             global $upload_root;

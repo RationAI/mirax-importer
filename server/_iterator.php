@@ -176,6 +176,17 @@ function mrxs_inspector(string $root) {
                     $root,
                     -1
                 );
+
+                if (is_dir("$target_path/vis/")) {
+                    $viz = scandir("$target_path/vis/");
+                    if ($viz && count($viz) > 2) {
+                        //generate viz record!
+                        global $analysis_event_name;
+                        require_once XO_DB_ROOT . "include.php";
+                        xo_file_name_event($fname, $analysis_event_name("prostate-prediction"),
+                            "{\"status\":\"processing-finished\",\"__glados\":true}");
+                    }
+                }
             } else {
                 echo "Skipped $item_name.\n";
             }
@@ -193,6 +204,6 @@ if ($safe_mode) {
 require_once "functions.php";
 require_once XO_DB_ROOT . "include.php";
 
-//mrxs_inspector($upload_root);
-//empty_folder_inspector($upload_root);
-file_name_fixer($upload_root);
+mrxs_inspector($upload_root);
+empty_folder_inspector($upload_root);
+//file_name_fixer($upload_root);

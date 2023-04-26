@@ -34,10 +34,10 @@ else
 fi
 
 if [ $RESULT -eq 0 ]; then
-  ./update_event.php "$2" "tiff-generated" "mirax-importer"
+  ./update_event.php "$2" '{"status":"tiff-generated"}' "mirax-importer"
   echo "$4:$6 DONE"
 else
-  ./update_event.php "$2" "tiff-failed" "mirax-importer"
+  ./update_event.php "$2" '{"status":"tiff-failed"}' "mirax-importer"
   echo "$4:$6 FAILED - ERR $RESULT"
 fi
 exit $RESULT
