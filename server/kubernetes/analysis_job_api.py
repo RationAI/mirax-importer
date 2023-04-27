@@ -11,7 +11,7 @@ import re
 namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read()
 
 if len(sys.argv) < 5:
-   print("usage: run.py run|status slide algorithm serviceAPI")
+   print("usage: analysis_job_api.py run|status slide algorithm serviceAPIs")
    exit(1)
 
 command=sys.argv[1]

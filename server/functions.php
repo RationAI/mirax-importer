@@ -160,18 +160,49 @@ if (!function_exists('str_starts_with')) {
     }
 }
 
-function file_uploaded($log_file, $server_root,
-                       $mrxs_name, $tiff_name, $directory,
-                       $biopsy, $year, $session_id) {
+//finishing touches - mirax pyramid, extract label
+function file_uploaded($mrxs_name, $tiff_name, $directory) {
     //make sure .skip file exists
     $parent_dir = dirname($directory);
     if (!file_exists("$parent_dir/.pull")) {
         file_put_contents("$parent_dir/.pull", 'tiff');
     }
-    //executes shell script as a background task, copies to output to the log file and stores it
-    return shell_exec("{$server_root}conversion_job.sh 2>&1 '$mrxs_name' '$tiff_name' '$directory' '$biopsy' '$year' '$session_id' | tee -a '$log_file' 2>/dev/null >/dev/null &");
+
+    global $server_root, $log_file, $run_conversion_as_job, $server_api_url, $importer_own_event;
+    if ($run_conversion_as_job) {
+        return run_importer_job("convert-$mrxs_name", "{$server_root}conversion_job.sh",
+            $mrxs_name, $tiff_name, $directory, $importer_own_event, $server_api_url);
+    }
+    return shell_exec_async("{$server_root}conversion_job.sh 2>&1 '$mrxs_name' '$tiff_name' '$directory' '$importer_own_event' '$server_api_url'",
+        $log_file);
 }
 
+function shell_exec_async($command, $log_file) {
+    return shell_exec("$command 2>&1 | tee -a '$log_file' 2>/dev/null >/dev/null &");
+}
+
+function run_importer_job($id, $command, ...$args) {
+    global $log_file, $server_root;
+    $args = implode(" ", array_map(fn($x) => is_numeric($x) || is_bool($x) ? $x : "\'$x\'", $args));
+    return run_kubernetes_job("{$server_root}kubernetes/importer_job.py run '$id' '$command $args' '$log_file'");
+}
+
+function run_kubernetes_job($cmd) {
+    //job.py run|status <args>
+    $out = "$cmd\n> ";
+    $execs = exec("$cmd 2>&1", $retArr, $retVal);
+    $out .= implode("\n> ", $retArr);
+    if ($execs !== false) {
+        if ($retVal === 0) {
+            $out .= "Job started...\n";
+        } else {
+            $out .= "Failed to initialize the job! Error '$retVal'.\n";
+        }
+    } else {
+        $out .= "Failed to call the job!\n";
+    }
+    return $out;
+}
 
 function erase_dirs() {
     global $upload_root;

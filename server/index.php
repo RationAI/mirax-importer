@@ -43,11 +43,12 @@ function get_file_status($fname, $event) {
     require_once XO_DB_ROOT . "include.php";
 
     if ($event) {
-        global $analysis_event_name;
-        $data = xo_file_name_get_latest_event($fname, $analysis_event_name($event));
+        $data = xo_file_name_get_latest_event($fname, $event);
         //we record status as data record, the latest record tells us event status
         if (isset($data["data"])) {
             //override file.status for front-end
+
+            //todo test importer routine
             $data["status"] = json_decode($data["data"])["status"] ?? "unknown";
         }
     } else {
@@ -164,17 +165,7 @@ switch ($_POST["command"]) {
         } catch (Exception $e) {
             error("File uploaded but the system failed to create an upload record: '$name'!", $e);
         }
-        global $log_file, $server_root;
-        file_uploaded(
-            $log_file,
-            $server_root,
-            $name,
-            $tiff_name,
-            $filepath,
-            $biopsy,
-            $year,
-            time()
-        ); //tstamp as session
+        file_uploaded($name, $tiff_name, $filepath);
         send_response(array("Upload finished for $name"));
     }
 
@@ -193,9 +184,8 @@ switch ($_POST["command"]) {
         }
 
         try {
-            global $analysis_event_name;
             require_once XO_DB_ROOT . "include.php";
-            xo_file_name_event(tiff_fname_from_mirax($name), $analysis_event_name($event), "{\"status\":\"$data\"}");
+            xo_file_name_event(tiff_fname_from_mirax($name), $event, "{\"status\":\"$data\"}");
             send_response();
         } catch (Exception $e) {
             global $upload_root;

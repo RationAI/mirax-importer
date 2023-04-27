@@ -12,11 +12,14 @@ require_once "functions.php";
 ///////////////////////////////
 
 function process($file_id_list, $algorithm, $session_id) {
-    global $upload_root, $server_root;
+    global $analysis_log_file, $server_root;
     //executes shell script as a background task, copies to output to the log file and stores it
     $file_id_list = json_encode($file_id_list);
     $algorithm = json_encode($algorithm);
-    return shell_exec("{$server_root}analysis_job.php 2>&1 '$file_id_list' '$algorithm' '$session_id' | tee -a '$upload_root/analysis_log.txt' 2>/dev/null >/dev/null &");
+
+    //todo remove this file, not necessary, run kubernetes job immediatelly
+    return shell_exec_async("{$server_root}analysis_job.php '$file_id_list' '$algorithm' '$session_id'",
+        $analysis_log_file);
 }
 
 ///////////////////////////////
@@ -82,10 +85,9 @@ if (!isset($algorithm["name"])) {
     error("Invalid algorithm: provided no valid value: JSON object required.");
 }
 require_once XO_DB_ROOT . "include.php";
-global $analysis_event_name;
 $out = array();
 $param = "";
-$event_name = $analysis_event_name($algorithm["name"]);
+$event_name = $algorithm["name"];
 if (isset($_POST['biopsy'])) {
     $param = trim($_POST['biopsy']);
     $year = trim($_POST['year']);

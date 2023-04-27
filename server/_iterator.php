@@ -114,7 +114,10 @@ function file_name_fixer(string $root) {
                 $biopsy = str_pad($biopsy, 4, '0', STR_PAD_LEFT);
                 $target_path = $upload_root . $rel_path . "/" . $matches[1] . $matches[2] . $matches[3] . $biopsy  . $matches[5];
 
-                throw new Exception("Implement your own iterator logics");
+                //throw new Exception("Implement your own iterator logics");
+                if (!rename($real_path, $target_path)) {
+                    exit("Failed to move file $target_path. Exit.");
+                }
 
             }
         } catch (Exception $e) {
@@ -122,8 +125,8 @@ function file_name_fixer(string $root) {
             print_r($e);
         }
     };
-    $pred = fn($f, $path, $is_dir) => false;
-    file_scan($root, "",  $clbck, $pred, true, 4);
+    $pred = fn($f, $path, $is_dir) => str_ends_with($f, ".tif");
+    file_scan($root, "",  $clbck, $pred, true, 6);
 }
 
 function mrxs_inspector(string $root) {
@@ -160,27 +163,15 @@ function mrxs_inspector(string $root) {
 
             if (!$file) {
                 //inserted because if exists we return the record
-                global $log_file, $server_root;
                 echo "Processing $item_name...\n";
-                file_uploaded(
-                    $log_file,
-                    $server_root,
-                    $item_name,
-                    $fname,
-                    $target_path,
-                    $biopsy,
-                    $root,
-                    -1
-                );
+                file_uploaded($item_name, $fname, $target_path);
 
                 if (is_dir("$target_path/vis/")) {
                     $viz = scandir("$target_path/vis/");
                     if ($viz && count($viz) > 2) {
                         //generate viz record!
-                        global $analysis_event_name;
                         require_once XO_DB_ROOT . "include.php";
-                        xo_file_name_event($fname, $analysis_event_name("prostate-prediction"),
-                            "{\"status\":\"processing-finished\",\"__glados\":true}");
+                        xo_file_name_event($fname, "prostate-prediction", "{\"status\":\"processing-finished\",\"__glados\":true}");
                         echo "Vis recorded\n";
                     }
                 } else echo "NO Vis \n";
@@ -201,6 +192,6 @@ if ($safe_mode) {
 require_once "functions.php";
 require_once XO_DB_ROOT . "include.php";
 
-mrxs_inspector($upload_root);
-empty_folder_inspector($upload_root);
-//file_name_fixer($upload_root);
+//mrxs_inspector($upload_root);
+//empty_folder_inspector($upload_root);
+file_name_fixer($upload_root);

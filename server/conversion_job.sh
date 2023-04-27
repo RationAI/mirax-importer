@@ -2,42 +2,46 @@
 #cwd
 cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"  # cd current directory
 
-SOURCE_FILE="$3/$1"
-TARGET_TIFF="$3/$2"
+if [ $# -lt 5 ]; then
+  echo 1>&2 "$0: usage mirax_file tiff_name directory event_name server_url [is_force]"
+  exit 2
+fi
 
 #parameters
 # $1 - file name
 # $2 - target tiff name
-# $3 - file path - absolute directory file path location
-# $4 - biopsy
-# $5 - session id - session number in which the job runs, unique each run (the same for each script run in a session)
-# $6 - year
-# $7 - force create - set any true-ish value to force conversion
+# $3 - path - absolute directory file path location
+# $4 - event name
+# $5 - event URL API - record event
+# $6 - force create - set any true-ish value to force conversion
+
+SOURCE_FILE="$3/$1"
+TARGET_TIFF="$3/$2"
 
 #first, we run a conversion to a pyramidal tiff
 
-if [ ! -z $7 ] || [ ! -f "$TARGET_TIFF" ]; then
-  echo "$4:$6 converting tiff..."
+if [ ! -z $6 ] || [ ! -f "$TARGET_TIFF" ]; then
+  echo "$1 converting tiff..."
   vips tiffsave "$SOURCE_FILE" "$TARGET_TIFF" --tile --pyramid --compression=jpeg --Q=60 --tile-width 512 --tile-height 512 --bigtiff
   RESULT=$?
 else
-  echo "$4:$6 conversion skipped!"
+  echo "$1 conversion skipped!"
   RESULT=0
 fi
 
 #extract label image, ignore failure
-if [ ! -z $7 ] || [ ! -f "$3/label.png" ]; then
-  echo "$4:$6 getting label..."
+if [ ! -z $6 ] || [ ! -f "$3/label.png" ]; then
+  echo "$1 getting label..."
   python3 mirax_extract_meta/label_extractor.py "$SOURCE_FILE" "$3/label.png"
 else
-  echo "$4:$6 label extraction skipped!"
+  echo "$1 label extraction skipped!"
 fi
 
 if [ $RESULT -eq 0 ]; then
-  ./update_event.php "$2" '{"status":"tiff-generated"}' "mirax-importer"
-  echo "$4:$6 DONE"
+  curl -X POST -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"success\"}" "$5"
+  echo "$1 DONE"
 else
-  ./update_event.php "$2" '{"status":"tiff-failed"}' "mirax-importer"
-  echo "$4:$6 FAILED - ERR $RESULT"
+  curl -X POST -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"error\"}" "$5"
+  echo "$1 FAILED - ERR $RESULT"
 fi
 exit $RESULT
