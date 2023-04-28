@@ -7,7 +7,7 @@ import re
 # get current namespace
 namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read()
 
-if len(sys.argv) < 6:
+if len(sys.argv) < 5:
    print("usage: importer_job.py run|status identifier command logfile")
    exit(1)
 
@@ -39,26 +39,26 @@ spec:
           type: RuntimeDefault
       containers:
       - name: importer-job
-        - env:
-            - name: XO_DB_DRIVER
-              value: pgsql
-            - name: XO_DB_HOST
-              value: xopat-postgresdb-rw
-            - name: XO_DB_PORT
-              value: '5432'
-            - name: XO_DB_NAME
-              value: postgresdb
-            - name: XO_DB_USER
-              value: browser
-            - name: XO_DB_PASS
-              valueFrom:
-                secretKeyRef:
-                  key: password
-                  name: xopat-postgresdb-app
-            - name: XO_MIRAX_SERVER_URL
-              value: https://mirax-xopat.dyn.cloud.e-infra.cz/importer/server
-          image: cerit.io/xopat/mirax-importer:php8.1
-          imagePullPolicy: Always
+        image: cerit.io/xopat/mirax-importer:php8.1
+        imagePullPolicy: Always
+        env:
+        - name: XO_DB_DRIVER
+          value: pgsql
+        - name: XO_DB_HOST
+          value: xopat-postgresdb-rw
+        - name: XO_DB_PORT
+          value: '5432'
+        - name: XO_DB_NAME
+          value: postgresdb
+        - name: XO_DB_USER
+          value: browser
+        - name: XO_DB_PASS
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: xopat-postgresdb-app
+        - name: XO_MIRAX_SERVER_URL
+          value: https://mirax-xopat.dyn.cloud.e-infra.cz/importer/server
         command: ['bash']
         args:
         - -c

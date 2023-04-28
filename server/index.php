@@ -156,7 +156,7 @@ switch ($_POST["command"]) {
         $upload_filepath = absolute_path_from_records($name, $year, $biopsy, true, true);
         try {
             if (!move_item($upload_filepath, $filepath, 0755)) {
-                error("Uploaded file cannot be moved to the final destination!");
+                error("Uploaded file cannot be moved to the final destination!", _xo_get_err_last());
             }
 
             require_once XO_DB_ROOT . "include.php";

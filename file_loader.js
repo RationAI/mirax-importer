@@ -153,11 +153,11 @@ class Uploader {
                     success = data.status === "success";
                     console.log("Server response:", data);
                 } catch (e) {
-                    console.error(e, xhr.statusText);
+                    console.error(e, xhr.statusText, xhr.responseText);
                     data = {
                         status: "error",
                         message: "Unknown error.",
-                        payload: xhr.statusText
+                        payload: xhr.responseText
                     };
                 }
 
@@ -351,7 +351,7 @@ class Uploader {
             };
             this._onUploadFinish = (success, json) => {
                 if (!success) {
-                    this.updateBulkElementError(this._bi, json.message, json.payload);
+                    this.updateBulkElementError(this._bi, json.message, json.payload, true);
                 }
 
                 //verify only when checksum client-side computed
@@ -359,7 +359,7 @@ class Uploader {
                     bulkItem.error = `Computed checksum locally: ${bulkItem.checksum}, on server: ${json.payload}`;
                     console.error(bulkItem.error);
                     this.updateBulkElementError(this._bi, `Checksum comparison on file ${bulkItem.fileInfo.name} failed!`,
-                        `Computed checksum locally: ${bulkItem.checksum}, on server: ${json.payload}`);
+                        `Computed checksum locally: ${bulkItem.checksum}, on server: ${json.payload}`, true);
                     return false;
                 }
                 return success;
@@ -448,12 +448,15 @@ class Uploader {
         $(`#bulk-checksum-${index}`).remove();
     }
 
-    updateBulkElementError(index, error, details="") {
+    updateBulkElementError(index, error, details="", finished=false) {
         details = details ? `<code>${details}</code>` : "";
         $(`#bulk-error-${index}`).append(`
           <div class="error-container">${error}${details}</div>
         `);
         // this.updateBulkElementChecksum(index, "---");
+        if (finished) {
+            $(`#bulk-element-${index}`).html(`<span>Finished with error.</span>`);
+        }
     }
 
     clearBulkElementError(index) {
@@ -562,6 +565,7 @@ class Uploader {
                 if (!routine.uploaded) updateUI("File is uploaded.<br>Biopsy: <b>" + data["biopsy"] + "</b>. You can start the analysis, processed files will be ignored. File is not yet available to the viewer.", false);
                 routine.uploaded = true;
                 break;
+                //todo tiff-* events not used anymore
             case "tiff-generated":
                 updateUI("File is uploaded. <br>Biopsy: <b>" + data["biopsy"] + "</b>. Tiff file is generated - the file is now available in the browser.", false);
                 stopMonitoring();
@@ -706,7 +710,7 @@ class Uploader {
             const targetElem = bulk.data.find(x => x.fileInfo.name.endsWith("mrxs"));
             if (bulk.parseErrors.length > 0) {
                 this.createBulkProgressElement(targetElem?.fileInfo?.name || "Item " + i, i, bulk);
-                this.updateBulkElementError(i, bulk.parseErrors.join("<br>"));
+                this.updateBulkElementError(i, bulk.parseErrors.join("<br>"), undefined, true);
                 continue;
             }
 
@@ -730,7 +734,7 @@ class Uploader {
                 if (!success) {
                     json.status = "error";
                     json.message = "Target skipped: unknown error.";
-                    this.updateBulkElementError(this._bi, json.message);
+                    this.updateBulkElementError(this._bi, json.message, undefined, true);
                     return false;
                 }
 
@@ -769,9 +773,16 @@ class Uploader {
             if (!monitorOnly) {
                 //bulk upload finished, now perform some processing
                 const copy2 = this.copyBulkItem(targetElem);
-                copy2.handler = () => {
+                copy2.handler = (success, json) => {
+                    if (!success) {
+                        json.status = "error";
+                        this.updateBulkElementError(this._bi, "File uploading failed to finish!", json, true);
+                        return false;
+                    }
+
                     this.updateBulkElementProcessing(this._bi, "Finishing the upload process"); //not online - message changed
                     this._uploadedFileNames.push(targetElem.fileName);
+                    targetElem._uploadPayload = json;
                     return true;
                 }
                 bulk.jobList.push(this.formSubmit.bind(this, "fileUploadBulkFinished", copy2, false));
@@ -891,7 +902,7 @@ be uploaded. Biopsy <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b><
         }
         let btn = document.createElement("button");
         btn.classList.add("btn");
-        btn.onclick = this.startBulkUpload.bind(this);
+        btn.onclick = this.startBulkUpload.bind(this, false);
         btn.id = "mid-step-verify-upload";
         btn.innerText = "Start Uploading";
         $(UI.progress).html(data.join(""));

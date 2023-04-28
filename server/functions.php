@@ -170,10 +170,11 @@ function file_uploaded($mrxs_name, $tiff_name, $directory) {
 
     global $server_root, $log_file, $run_conversion_as_job, $server_api_url, $importer_own_event;
     if ($run_conversion_as_job) {
-        return run_importer_job("convert-$mrxs_name", "{$server_root}conversion_job.sh",
+        $log = run_importer_job("convert-$mrxs_name", "{$server_root}conversion_job.sh",
             $mrxs_name, $tiff_name, $directory, $importer_own_event, $server_api_url);
+        file_put_contents($log_file, $log, FILE_APPEND);
     }
-    return shell_exec_async("{$server_root}conversion_job.sh 2>&1 '$mrxs_name' '$tiff_name' '$directory' '$importer_own_event' '$server_api_url'",
+    shell_exec_async("{$server_root}conversion_job.sh 2>&1 '$mrxs_name' '$tiff_name' '$directory' '$importer_own_event' '$server_api_url'",
         $log_file);
 }
 
@@ -183,7 +184,9 @@ function shell_exec_async($command, $log_file) {
 
 function run_importer_job($id, $command, ...$args) {
     global $log_file, $server_root;
-    $args = implode(" ", array_map(fn($x) => is_numeric($x) || is_bool($x) ? $x : "\'$x\'", $args));
+
+    //shell escaping of quotes is '\'' -> close, scape, open
+    $args = implode(" ", array_map(fn($x) => is_numeric($x) || is_bool($x) ? $x : "'\''$x'\''", $args));
     return run_kubernetes_job("{$server_root}kubernetes/importer_job.py run '$id' '$command $args' '$log_file'");
 }
 
