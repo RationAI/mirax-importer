@@ -62,7 +62,7 @@ spec:
         command: ['bash']
         args:
         - -c
-        - {command} >> "{logfile}" 2>&1
+        - cd /var/www/html/importer && git pull && {command} >> "{logfile}" 2>&1
         securityContext:
           runAsUser: 33
           runAsGroup: 33
