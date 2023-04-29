@@ -171,11 +171,12 @@ function file_uploaded($mrxs_name, $tiff_name, $directory) {
     global $server_root, $log_file, $run_conversion_as_job, $server_api_url, $importer_own_event;
     if ($run_conversion_as_job) {
         $log = run_importer_job("convert-$mrxs_name", "{$server_root}conversion_job.sh",
-            $mrxs_name, $tiff_name, $directory, $importer_own_event, $server_api_url);
+            $mrxs_name, $tiff_name, $directory, $importer_own_event, "$server_api_url/index.php");
         file_put_contents($log_file, $log, FILE_APPEND);
+    } else {
+        shell_exec_async("{$server_root}conversion_job.sh 2>&1 '$mrxs_name' '$tiff_name' '$directory' '$importer_own_event' '$server_api_url/index.php'",
+            $log_file);
     }
-    shell_exec_async("{$server_root}conversion_job.sh 2>&1 '$mrxs_name' '$tiff_name' '$directory' '$importer_own_event' '$server_api_url'",
-        $log_file);
 }
 
 function shell_exec_async($command, $log_file) {
