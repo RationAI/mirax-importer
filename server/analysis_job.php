@@ -39,7 +39,7 @@ foreach ($out as $row) {
             output("Failed to call the job! File $file_path$file_name does not exist!");
             return;
         }
-        $cmd = "$server_root/kubernetes/analysis_job_api.py run '$file_path$file_name' '$algorithm' '$server_api_url/index.php'";
+        $cmd = "$server_root/kubernetes/analysis_job_api.py run '$file_path$file_name' '$algorithm_serialized' '$server_api_url/index.php'";
         output(run_kubernetes_job($cmd));
     } catch (Exception $e) {
         output("Processing failed for file " . $row["name"]);
