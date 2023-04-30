@@ -541,7 +541,7 @@ class Uploader {
         });
         let data = await response.json();
         if (data.status !== "success" || typeof data.payload !== "object") {
-            updateUIError("Failed to upload file: please, try again.", data.message);
+            updateUIError("The monitoring process failed, retrying...", data.message);
             stopMonitoring();
             return;
         }

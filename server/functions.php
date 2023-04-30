@@ -204,7 +204,7 @@ function run_kubernetes_job($id, $cmd) {
         $output[]= "Failed to call the job!";
     }
     $log_prefix = "\n$id> ";
-    return "$cmd\n> " . implode($log_prefix, $output);
+    return $log_prefix . $cmd . $log_prefix . implode($log_prefix, $output);
 }
 
 function erase_dirs() {
