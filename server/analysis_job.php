@@ -18,7 +18,7 @@ $algorithm = json_decode($algorithm_serialized, true);
 $event_name = trim($algorithm["name"]);
 
 function output($prefix, $msg) {
-    echo "$prefix: $msg\n";
+    echo $prefix ? "$prefix: $msg\n" : "$msg\n";
 }
 
 output($event_name, "Running analysis job session: Algorithm configuration {$argv[2]}");
@@ -36,7 +36,7 @@ foreach ($out as $row) {
             return;
         }
         $cmd = "$server_root/kubernetes/analysis_job_api.py run '$file_path$file_name' '$algorithm_serialized' '$server_api_url/index.php'";
-        output(run_kubernetes_job("$event_name:$file_name", $cmd)); //log prefixed via run_kubernetes_job id
+        output(false, run_kubernetes_job("$event_name:$file_name", $cmd)); //log prefixed via run_kubernetes_job id
     } catch (Exception $e) {
         output("$event_name:{$row['name']}", "Processing failed!");
     }
