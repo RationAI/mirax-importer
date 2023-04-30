@@ -11,15 +11,14 @@ require_once "functions.php";
 ///  UTILS
 ///////////////////////////////
 
-function process($file_id_list, $algorithm, $session_id) {
+function process($file_id_list, $algorithm) {
     global $analysis_log_file, $server_root;
     //executes shell script as a background task, copies to output to the log file and stores it
     $file_id_list = json_encode($file_id_list);
     $algorithm = json_encode($algorithm);
 
     //todo remove this file, not necessary, run kubernetes job immediatelly
-    return shell_exec_async("{$server_root}analysis_job.php '$file_id_list' '$algorithm' '$session_id'",
-        $analysis_log_file);
+    return shell_exec_async("{$server_root}analysis_job.php '$file_id_list' '$algorithm'", $analysis_log_file);
 }
 
 ///////////////////////////////
@@ -168,5 +167,5 @@ if ($no_files) {
     exit();
 }
 
-process($file_id_list, $algorithm, time());
+process($file_id_list, $algorithm);
 if (!$renders_page) send_response("Processing initiated for $param");

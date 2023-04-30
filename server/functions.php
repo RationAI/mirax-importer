@@ -188,24 +188,23 @@ function run_importer_job($id, $command, ...$args) {
 
     //shell escaping of quotes is '\'' -> close, scape, open
     $args = implode(" ", array_map(fn($x) => is_numeric($x) || is_bool($x) ? $x : "'\''$x'\''", $args));
-    return run_kubernetes_job("{$server_root}kubernetes/importer_job.py run '$id' '$command $args' '$log_file'");
+    return run_kubernetes_job($id, "{$server_root}kubernetes/importer_job.py run '$id' '$command $args' '$log_file'");
 }
 
-function run_kubernetes_job($cmd) {
+function run_kubernetes_job($id, $cmd) {
     //job.py run|status <args>
-    $out = "$cmd\n> ";
-    $execs = exec("$cmd 2>&1", $retArr, $retVal);
-    $out .= implode("\n> ", $retArr);
+    $execs = exec("$cmd 2>&1", $output, $retVal);
     if ($execs !== false) {
         if ($retVal === 0) {
-            $out .= "Job started...\n";
+            $output .= "Job started...";
         } else {
-            $out .= "Failed to initialize the job! Error '$retVal'.\n";
+            $output .= "Failed to initialize the job! Error '$retVal'.";
         }
     } else {
-        $out .= "Failed to call the job!\n";
+        $output .= "Failed to call the job!";
     }
-    return $out;
+    $log_prefix = "\n$id> ";
+    return "$cmd\n> " . implode($log_prefix, $output);
 }
 
 function erase_dirs() {
