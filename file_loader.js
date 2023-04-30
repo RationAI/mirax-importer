@@ -637,6 +637,9 @@ class Uploader {
 
         //override
         stopMonitor(object);
+        if (eventName) {
+            updateUI("Process started: " + eventName);
+        }
 
         object.intervalId = setInterval(() => {
             self._monitoring(
@@ -869,7 +872,11 @@ class Uploader {
         }
 
         this._sessionReady = {bulkList, monitorOnly};
-        this.middleStepVerifyParsedFiles();
+        if (this.monitorOnly) {
+            this.startBulkUpload(false);
+        } else {
+            this.middleStepVerifyParsedFiles();
+        }
     }
 
     middleStepVerifyParsedFiles() {
