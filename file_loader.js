@@ -637,6 +637,9 @@ class Uploader {
 
         //override
         stopMonitor(object);
+        if (eventName) {
+            updateUI("Process started: " + eventName);
+        }
 
         object.intervalId = setInterval(() => {
             self._monitoring(
