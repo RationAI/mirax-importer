@@ -174,7 +174,6 @@ switch ($_POST["command"]) {
         $event = trim($_POST["event"]);
         $status = trim($_POST["payload"]);
 
-        if (!str_ends_with($name, ".mrxs")) $name = "$name.mrxs";
         if (strpos($status, "processing") !== false) {
             $data = "processing";
         } else if (strpos($status, "error") === false) {
