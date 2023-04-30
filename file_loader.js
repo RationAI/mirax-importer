@@ -872,7 +872,11 @@ class Uploader {
         }
 
         this._sessionReady = {bulkList, monitorOnly};
-        this.middleStepVerifyParsedFiles();
+        if (this.monitorOnly) {
+            this.startBulkUpload(false);
+        } else {
+            this.middleStepVerifyParsedFiles();
+        }
     }
 
     middleStepVerifyParsedFiles() {
