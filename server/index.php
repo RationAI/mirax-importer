@@ -49,7 +49,7 @@ function get_file_status($fname, $event) {
             //override file.status for front-end
 
             //todo test importer routine
-            $data["status"] = json_decode($data["data"])["status"] ?? "unknown";
+            $data["status"] = json_decode($data["data"], true)["status"] ?? "unknown";
         }
     } else {
         $data = xo_get_file_by_name($fname);

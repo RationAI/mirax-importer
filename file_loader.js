@@ -541,8 +541,15 @@ class Uploader {
         });
         let data = await response.json();
         if (data.status !== "success" || typeof data.payload !== "object") {
-            updateUIError("The monitoring process failed, retrying...", data.message);
-            stopMonitoring();
+            console.log("Data error status", data.status, data.payload);
+            if (routine._failcount === undefined) routine._failcount = 0;
+            routine._failcount++;
+            if (routine._failcount > 4) {
+                stopMonitoring();
+                delete routine._failcount;
+            } else {
+                updateUIError(`The monitoring process failed, retrying (${routine._failcount})...`, data.message);
+            }
             return;
         }
 
@@ -582,7 +589,7 @@ class Uploader {
                 updateUI();
                 break;
             case "processing-finished":
-                updateUIFinish("The file has been successfully uploaded and processed.");
+                updateUIFinish("The file has been successfully processed.");
                 stopMonitoring();
                 return;
             case "failed":
