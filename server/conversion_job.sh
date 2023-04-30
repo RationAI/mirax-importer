@@ -47,4 +47,5 @@ else
   curl -s -X POST -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"error\"}" "$5"
   echo "Failed: Exit $RESULT"
 fi
+echo
 exit $RESULT
