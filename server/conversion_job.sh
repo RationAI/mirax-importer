@@ -15,33 +15,36 @@ fi
 # $5 - event URL API - record event
 # $6 - force create - set any true-ish value to force conversion
 
+PREFIX="convert-$1"
 SOURCE_FILE="$3/$1"
 TARGET_TIFF="$3/$2"
+
+exec > >(trap "" INT TERM; sed "s|^|I:$PREFIX: |")
+exec 2> >(trap "" INT TERM; sed "s|^|E:$PREFIX: |" >&2)
 
 #first, we run a conversion to a pyramidal tiff
 
 if [ ! -z $6 ] || [ ! -f "$TARGET_TIFF" ]; then
-  echo "$1 converting tiff..."
+  echo "tiff..."
   vips tiffsave "$SOURCE_FILE" "$TARGET_TIFF" --tile --pyramid --compression=jpeg --Q=60 --tile-width 512 --tile-height 512 --bigtiff
   RESULT=$?
 else
-  echo "$1 conversion skipped!"
+  echo "vips conversion skipped!"
   RESULT=0
 fi
 
 #extract label image, ignore failure
 if [ ! -z $6 ] || [ ! -f "$3/label.png" ]; then
-  echo "$1 getting label..."
+  echo "label..."
   python3 mirax_extract_meta/label_extractor.py "$SOURCE_FILE" "$3/label.png"
 else
-  echo "$1 label extraction skipped!"
+  echo "label extraction skipped!"
 fi
 
 if [ $RESULT -eq 0 ]; then
-  curl -X POST -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"success\"}" "$5"
-  echo "$1 DONE"
+  curl -s -X POST -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"success\"}" "$5"
 else
-  curl -X POST -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"error\"}" "$5"
-  echo "$1 FAILED - ERR $RESULT"
+  curl -s -X POST -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"error\"}" "$5"
+  echo "Failed: Exit $RESULT"
 fi
 exit $RESULT
