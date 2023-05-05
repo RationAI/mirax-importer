@@ -69,7 +69,6 @@ spec:
           limits:
            cpu: 4
            memory: '128Gi'
-           nvidia.com/gpu: 1
         volumeMounts:
         - mountPath: /mnt/data
           name: data
