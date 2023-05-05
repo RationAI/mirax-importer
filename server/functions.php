@@ -168,14 +168,18 @@ function file_uploaded($mrxs_name, $tiff_name, $directory) {
         file_put_contents("$parent_dir/.pull", 'tiff');
     }
 
-    global $server_root, $log_file, $run_conversion_as_job, $server_api_url, $importer_own_event;
+    global $server_root, $log_file, $run_conversion_as_job, $server_api_url, $basic_auth, $importer_own_event;
+    $cmd = "{$server_root}conversion_job.sh";
+    $args = [$mrxs_name, $tiff_name, $directory, $importer_own_event, "$server_api_url/index.php"];
+
     if ($run_conversion_as_job) {
-        $log = run_importer_job("convert-$mrxs_name", "{$server_root}conversion_job.sh",
-            $mrxs_name, $tiff_name, $directory, $importer_own_event, "$server_api_url/index.php");
+        if ($basic_auth) $args[]=$basic_auth;
+        $log = run_importer_job("convert-$mrxs_name", $cmd, $args);
         file_put_contents($log_file, $log, FILE_APPEND);
     } else {
-        shell_exec_async("{$server_root}conversion_job.sh 2>&1 '$mrxs_name' '$tiff_name' '$directory' '$importer_own_event' '$server_api_url/index.php'",
-            $log_file);
+        if ($basic_auth) $args[]=$basic_auth;
+        $args = implode(" ", array_map(fn($x) => is_numeric($x) || is_bool($x) ? $x : "'$x'", $args));
+        shell_exec_async("$cmd $args", $log_file);
     }
 }
 
@@ -204,7 +208,7 @@ function run_kubernetes_job($id, $cmd) {
         $output[]= "Failed to call the job!";
     }
     $log_prefix = "\n$id> ";
-    return $log_prefix . $cmd . $log_prefix . implode($log_prefix, $output);
+    return "$id> " . $cmd . $log_prefix . implode($log_prefix, $output);
 }
 
 function erase_dirs() {

@@ -187,12 +187,15 @@ switch ($_POST["command"]) {
             $data = "failed";
         }
 
+        global $upload_root;
+
         try {
             require_once XO_DB_ROOT . "include.php";
             xo_file_name_event(tiff_fname_from_mirax($name), $event, "{\"status\":\"$data\"}");
             send_response();
+            exec("echo 'Status $name $event $status\n' >> $upload_root/.update_event.log");
+
         } catch (Exception $e) {
-            global $upload_root;
             $message = $e->getMessage();
             exec("echo 'Failed to record status $name $event $status ($message)\n' >> $upload_root/.update_event.log");
         }

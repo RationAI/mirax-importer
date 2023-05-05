@@ -18,4 +18,5 @@ $importer_own_event = "mirax-importer";
 $mirax_pattern = "/^(.*?([0-9]{4})[_-]([0-9]+).*)\.mrxs$/i";
 //the server URL where it is deployed ($server_api_url/config.php is this file)
 $server_api_url = _read_env_mirax_importer("XO_MIRAX_SERVER_URL", "http://localhost:8081/importer/server");
+$basic_auth = _read_env_mirax_importer("XO_MIRAX_SERVER_BASIC_AUTH", false);
 $run_conversion_as_job = _read_env_mirax_importer("XO_MIRAX_KUBERNETES", false);
