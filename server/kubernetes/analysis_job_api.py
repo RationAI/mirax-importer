@@ -11,13 +11,14 @@ import re
 namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read()
 
 if len(sys.argv) < 5:
-   print("usage: analysis_job_api.py run|status slide algorithm serviceAPIs")
+   print("usage: analysis_job_api.py run|status slide algorithm serviceAPIs [headers]")
    exit(1)
 
 command=sys.argv[1]
 slide=sys.argv[2]
 algorithm=sys.argv[3]
 service=sys.argv[4]
+headers=sys.argv[5] if len(sys.argv) > 4 else '{}'
 
 # data mount point in the job container, irrelevant of what importer uses
 mntpath='/mnt/data'
@@ -33,7 +34,7 @@ pvc = 'pvc-xopat-demo'
 # init config
 config.load_incluster_config()
 
-def create_job(name, slide, algorithm, service, log_path, log_file):
+def create_job(name, slide, algorithm, service, headers, log_path, log_file):
     job = f"""\
 apiVersion: batch/v1
 kind: Job
@@ -56,7 +57,7 @@ spec:
         command: ['bash']
         args:
         - -c
-        - mkdir -p {log_path} && snakemake target_vis --cores 4 --config slide_fp='{slide}' algorithm='{algorithm}' endpoint='{service}' >> "{log_file}" 2>&1
+        - mkdir -p {log_path} && snakemake target_vis --cores 4 --config slide_fp='{slide}' algorithm='{algorithm}' endpoint='{service}' headers='{headers}' >> "{log_file}" 2>&1
         securityContext:
           runAsUser: 33
           runAsGroup: 33
@@ -98,7 +99,7 @@ def status_job(name):
 name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)", "", slide.lower())
 
 if command == 'run':
-   create_job(name, f"{mntpath}/{slide}", algorithm, service, log_path, log_file)
+   create_job(name, f"{mntpath}/{slide}", algorithm, service, headers, log_path, log_file)
    exit(0)
 
 if command == 'status':

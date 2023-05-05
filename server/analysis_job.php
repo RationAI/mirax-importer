@@ -17,8 +17,11 @@ $algorithm_serialized = trim($argv[2]);
 $algorithm = json_decode($algorithm_serialized, true);
 $event_name = trim($algorithm["name"]);
 
+$time = gmdate("Y-m-d H:i:s");
+
 function output($prefix, $msg) {
-    echo $prefix ? "$prefix: $msg\n" : "$msg\n";
+    global $time;
+    echo $prefix ? "$time $prefix: $msg\n" : "$time $msg\n";
 }
 
 output($event_name, "Running analysis job session: Algorithm configuration {$argv[2]}");
@@ -29,16 +32,20 @@ foreach ($out as $row) {
         $file_name = mirax_fname_from_tiff($row["name"]);
         $file_path = mirax_path_from_db_record($row);
         $algorithm_name = $algorithm["name"];
-        global $upload_root, $server_root, $server_api_url;
+        global $upload_root, $server_root, $server_api_url, $basic_auth;
 
         if (!file_exists("$upload_root$file_path$file_name")) {
             output("$event_name:$file_name", "Failed to call the job! File $file_path$file_name does not exist!");
             return;
         }
-        $cmd = "$server_root/kubernetes/analysis_job_api.py run '$file_path$file_name' '$algorithm_serialized' '$server_api_url/index.php'";
+        //for python: basic auth dict
+        if ($basic_auth) $auth=' \'{"Authorization": "Basic '.base64_encode($basic_auth).'"}\'';
+        else $auth = "";
+
+        $cmd = "$server_root/kubernetes/analysis_job_api.py run '$file_path$file_name' '$algorithm_serialized' '$server_api_url/index.php'$auth";
         output(false, run_kubernetes_job("$event_name:$file_name", $cmd)); //log prefixed via run_kubernetes_job id
     } catch (Exception $e) {
-        output("$event_name:{$row['name']}", "Processing failed!");
+        output("$event_name:$event_name:{$row['name']}", "Processing failed!");
     }
 }
 ?>
