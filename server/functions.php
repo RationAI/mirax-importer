@@ -170,15 +170,18 @@ function file_uploaded($mrxs_name, $tiff_name, $directory) {
 
     global $server_root, $log_file, $run_conversion_as_job, $server_api_url, $basic_auth, $importer_own_event;
     $cmd = "{$server_root}conversion_job.sh";
+    $time = gmdate("Y-m-d H:i:s");
+    $log_prefix = "$time $mrxs_name";
     $args = [$mrxs_name, $tiff_name, $directory, $importer_own_event, "$server_api_url/index.php"];
 
     if ($run_conversion_as_job) {
         if ($basic_auth) $args[]=$basic_auth;
-        $log = run_importer_job("convert-$mrxs_name", $cmd, $args);
+        $log = run_importer_job($log_prefix, "convert-$mrxs_name", $cmd, ...$args);
         file_put_contents($log_file, $log, FILE_APPEND);
     } else {
         if ($basic_auth) $args[]=$basic_auth;
         $args = implode(" ", array_map(fn($x) => is_numeric($x) || is_bool($x) ? $x : "'$x'", $args));
+        file_put_contents($log_file, "$log_prefix: $cmd $args\n", FILE_APPEND);
         shell_exec_async("$cmd $args", $log_file);
     }
 }
@@ -187,15 +190,15 @@ function shell_exec_async($command, $log_file) {
     return shell_exec("$command 2>&1 | tee -a '$log_file' 2>/dev/null >/dev/null &");
 }
 
-function run_importer_job($id, $command, ...$args) {
+function run_importer_job($log_prefix, $id, $command, ...$args) {
     global $log_file, $server_root;
 
     //shell escaping of quotes is '\'' -> close, scape, open
     $args = implode(" ", array_map(fn($x) => is_numeric($x) || is_bool($x) ? $x : "'\''$x'\''", $args));
-    return run_kubernetes_job($id, "{$server_root}kubernetes/importer_job.py run '$id' '$command $args' '$log_file'");
+    return run_kubernetes_job($log_prefix, "{$server_root}kubernetes/importer_job.py run '$id' '$command $args' '$log_file'");
 }
 
-function run_kubernetes_job($id, $cmd) {
+function run_kubernetes_job($log_prefix, $cmd) {
     //job.py run|status <args>
     $execs = exec("$cmd 2>&1", $output, $retVal);
     if ($execs !== false) {
@@ -207,8 +210,9 @@ function run_kubernetes_job($id, $cmd) {
     } else {
         $output[]= "Failed to call the job!";
     }
-    $log_prefix = "\n$id> ";
-    return "$id> " . $cmd . $log_prefix . implode($log_prefix, $output);
+
+    $prefix = "\n$log_prefix> ";
+    return "$log_prefix> " . $cmd . $prefix . implode($prefix, $output);
 }
 
 function erase_dirs() {

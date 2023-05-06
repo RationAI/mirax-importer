@@ -23,9 +23,10 @@ TARGET_TIFF="$3/$2"
 exec > >(trap "" INT TERM; sed "s|^|I:$PREFIX: |")
 exec 2> >(trap "" INT TERM; sed "s|^|E:$PREFIX: |" >&2)
 
-BASIC=""
-if [ ! -z $7 ]; then
-  BASIC="-u '$7'"
+if [ ! -z $6 ]; then
+  BASIC="-u $6"
+else
+  BASIC=""
 fi
 
 #first, we run a conversion to a pyramidal tiff
