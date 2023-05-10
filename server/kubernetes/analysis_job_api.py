@@ -54,10 +54,8 @@ spec:
       - name: snakemake-job
         image: cerit.io/xopat/histopat:v1.1
         imagePullPolicy: Always
-        command: ['bash']
-        args:
-        - -c
-        - mkdir -p {log_path} && snakemake target_vis --cores 4 --config slide_fp='{slide}' algorithm='{algorithm}' endpoint='{service}' headers='{headers}' >> "{log_file}" 2>&1
+        command: ["bash"]
+        args: ["-c", "mkdir -p {log_path} && snakemake -F target_vis --cores 4 --config slide_fp='{slide}' algorithm='{algorithm}' endpoint='{service}' headers='{headers}' >> '{log_file}' 2>&1"]
         securityContext:
           runAsUser: 33
           runAsGroup: 33
@@ -99,7 +97,7 @@ def status_job(name):
 name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)", "", slide.lower())
 
 if command == 'run':
-   create_job(name, f"{mntpath}/{slide}", algorithm, service, headers, log_path, log_file)
+   create_job(name, f"{mntpath}/{slide}", algorithm.replace('"', '\\"'), service, headers.replace('"', '\\"'), log_path, log_file)
    exit(0)
 
 if command == 'status':
