@@ -24,7 +24,6 @@ function output($prefix, $msg) {
     echo $prefix ? "$time $prefix: $msg\n" : "$time $msg\n";
 }
 
-output($event_name, "Running analysis job session: Algorithm configuration {$argv[2]}");
 require_once XO_DB_ROOT . "include.php";
 $out = xo_files_by_id($file_id_list);
 foreach ($out as $row) {

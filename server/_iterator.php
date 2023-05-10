@@ -40,7 +40,8 @@ function file_scan(string   $path,
                 file_scan($new_path,
                     $rel_start === '' ? $file : $rel_start . '/' . $file,
                     $callback, $filename_predicate, $exit_recurse,
-                    $max_recursion, $recursion, "$fname_append/$file");
+                    $max_recursion, $recursion,
+                    $fname_append === '' ? $file : "$fname_append/$file");
             }
 
             if ($exit_recurse && $filename_predicate($file, $new_path, $valid_dir)) {
@@ -101,6 +102,10 @@ function empty_folder_inspector(string $root) {
     file_scan($root, "",  $clbck, $pred, true, 9999);
 }
 
+function print_moves($x, $y) {
+    echo $x . " --> " . $y . "\n";
+}
+
 function file_name_fixer(string $root) {
     $clbck = function ($is_file, $item_name, $rel_path, $start_path) {
         global $upload_root;
@@ -114,18 +119,19 @@ function file_name_fixer(string $root) {
                 $biopsy = str_pad($biopsy, 4, '0', STR_PAD_LEFT);
                 $target_path = $upload_root . $rel_path . "/" . $matches[1] . $matches[2] . $matches[3] . $biopsy  . $matches[5];
 
-                //throw new Exception("Implement your own iterator logics");
-                if (!rename($real_path, $target_path)) {
-                    exit("Failed to move file $target_path. Exit.");
+                if ($real_path != $target_path) {
+                    print_moves($real_path, $target_path);
+                    if (!rename($real_path, $target_path)) {
+                        exit("Failed to move file $target_path. Exit.");
+                    }
                 }
-
             }
         } catch (Exception $e) {
             print_r("File $item_name processing exception!");
             print_r($e);
         }
     };
-    $pred = fn($f, $path, $is_dir) => str_ends_with($f, ".tif");
+    $pred = fn($f, $path, $is_dir) => $is_dir || str_ends_with($f, ".tif") || str_ends_with($f, ".tiff") || str_ends_with($f, ".mrxs");
     file_scan($root, "",  $clbck, $pred, true, 6);
 }
 
@@ -140,8 +146,11 @@ function mrxs_inspector(string $root) {
             $root = file_path_year($matches[2]);
 
             $path = mirax_path_from_db_record(["name"=>$fname, "root" => $root, "biopsy" => $biopsy]);
-            $real_path = $upload_root . $rel_path;
+
+            $real_path = $upload_root . $rel_path . "/";
             $target_path = $upload_root . $path;
+
+            if ($real_path == $target_path) return;
 
             if (!file_exists("$target_path/$item_name")) {
                 //bit dirty moving files, but we know only one mirax per folder exists
@@ -185,13 +194,13 @@ function mrxs_inspector(string $root) {
 }
 
 global $safe_mode, $upload_root;
-if ($safe_mode) {
-    error("Not allowed in safe mode!");
-    exit;
-}
+//if ($safe_mode) {
+//    echo "Not allowed in safe mode!";
+//    exit;
+//}
 require_once "functions.php";
 require_once XO_DB_ROOT . "include.php";
 
-//mrxs_inspector($upload_root);
-//empty_folder_inspector($upload_root);
-file_name_fixer($upload_root);
+mrxs_inspector($upload_root);
+empty_folder_inspector($upload_root);
+//file_name_fixer($upload_root);
