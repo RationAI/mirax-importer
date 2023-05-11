@@ -21,7 +21,7 @@ pvc = os.environ.get('XO_KUBE_PVC', 'error-XO_KUBE_PVC-not-set')
 # init config
 config.load_incluster_config()
 
-def create_job(name, command, logfile):
+def create_job(name, command):
     job = f"""\
 apiVersion: batch/v1
 kind: Job
@@ -97,7 +97,7 @@ def status_job(name):
 name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)", "", service_id.lower())
 
 if command == 'run':
-   create_job(name, to_execute, logfile)
+   create_job(name, to_execute)
    exit(0)
 
 if command == 'status':
