@@ -29,6 +29,12 @@ else
   BASIC=""
 fi
 
+if [ ! -z $HTTPS_PROXY ]; then
+  PROXY="--proxy $HTTPS_PROXY"
+else
+  PROXY=""
+fi
+
 #first, we run a conversion to a pyramidal tiff
 
 if [ ! -z $7 ] || [ ! -f "$TARGET_TIFF" ]; then
@@ -49,9 +55,9 @@ else
 fi
 
 if [ $RESULT -eq 0 ]; then
-  curl -s -X POST $BASIC -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"success\"}" "$5"
+  curl -s -X POST $PROXY $BASIC -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"success\"}" "$5"
 else
-  curl -s -X POST $BASIC -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"error\"}" "$5"
+  curl -s -X POST $PROXY $BASIC -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"error\"}" "$5"
   echo "Failed: Exit $RESULT"
 fi
 echo

@@ -44,19 +44,21 @@ spec:
         imagePullPolicy: Always
         env:
         - name: XO_DB_DRIVER
-          value: {os.environ.get('XO_DB_DRIVER', 'XO_DB_DRIVER-not-found')}
+          value: "{os.environ.get('XO_DB_DRIVER', 'XO_DB_DRIVER-not-found')}"
         - name: XO_DB_HOST
-          value: {os.environ.get('XO_DB_HOST', 'XO_DB_HOST-not-found')}
+          value: "{os.environ.get('XO_DB_HOST', 'XO_DB_HOST-not-found')}"
         - name: XO_DB_PORT
-          value: {os.environ.get('XO_DB_PORT', 'XO_DB_PORT-not-found')}
+          value: "{os.environ.get('XO_DB_PORT', 'XO_DB_PORT-not-found')}"
         - name: XO_DB_NAME
-          value: {os.environ.get('XO_DB_NAME', 'XO_DB_NAME-not-found')}
+          value: "{os.environ.get('XO_DB_NAME', 'XO_DB_NAME-not-found')}"
         - name: XO_DB_USER
-          value: {os.environ.get('XO_DB_USER', 'XO_DB_USER-not-found')}
+          value: "{os.environ.get('XO_DB_USER', 'XO_DB_USER-not-found')}"
         - name: XO_DB_PASS
-          value: {os.environ.get('XO_DB_PASS', 'XO_DB_PASS-not-found')}
+          value: "{os.environ.get('XO_DB_PASS', 'XO_DB_PASS-not-found')}"
         - name: XO_MIRAX_SERVER_URL
-          value: {os.environ.get('XO_MIRAX_SERVER_URL', 'XO_MIRAX_SERVER_URL-not-found')}
+          value: "{os.environ.get('XO_MIRAX_SERVER_URL', 'XO_MIRAX_SERVER_URL-not-found')}"
+        - name: HTTPS_PROXY
+          value: "{os.environ.get('HTTPS_PROXY', 'http://proxy.ics.muni.cz:3128')}"
         command: ['bash']
         args:
         - -c
