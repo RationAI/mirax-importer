@@ -36,7 +36,7 @@ function upload_iterator(infoNode, uploader, errorHandler) {
     //get name without suffix, year and biopsy from the file [...].mrxs
     let {name, year, biopsy} = parseFileName(fileInfo.name);
     if (!name || !year || !biopsy) {
-        errorHandler(`File '${fileInfo.name}' failed to upload: file does not match any pattern! Make sure the file has 4 digits in the year and 5 digits as the biopsy number: YYYY-XXXXX.`);
+        errorHandler(`File '${fileInfo.name}' failed to upload: invalid name! Make sure the file has 4 digits in the year (YYYY) and 5 digits as the biopsy number (XXXXX).`);
         return false;
     }
     fileInfo.isMrxs = true;
@@ -108,12 +108,6 @@ const UI = {
         document.getElementById("progress-error").innerHTML = `<div class="error-container">${title}</div>`;
     }
 }
-
-const preventExit = () => "Files are still uploading. Are you sure?";
-
-//todo prevent blur not working
-const preventBlur = () => "Hiding this tab or window from focus will penalize running session and the uploading might stop. For switching to different tabs, leave this tab in a separate browser window.";
-
 
 class Uploader {
     constructor() {

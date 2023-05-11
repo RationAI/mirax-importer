@@ -29,7 +29,7 @@ log_path=f"{mntpath}/{slide_path}/logs"
 log_file=f"{log_path}/{log_name}.log"
 
 
-pvc = 'pvc-xopat-demo'
+pvc = os.environ.get('XO_KUBE_PVC', 'error-XO_KUBE_PVC-not-set')
 
 # init config
 config.load_incluster_config()
