@@ -8,14 +8,13 @@ import os
 # get current namespace
 namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read()
 
-if len(sys.argv) < 5:
-   print("usage: importer_job.py run|status identifier command logfile")
+if len(sys.argv) < 4:
+   print("usage: importer_job.py run|status identifier command")
    exit(1)
 
 command=sys.argv[1]
 service_id=sys.argv[2]
 to_execute=sys.argv[3]
-logfile=sys.argv[4]
 
 pvc = os.environ.get('XO_KUBE_PVC', 'error-XO_KUBE_PVC-not-set')
 
@@ -62,7 +61,7 @@ spec:
         command: ['bash']
         args:
         - -c
-        - mkdir -p /var/www/html/importer && git clone --single-branch --branch kubernetes https://github.com/RationAI/mirax-importer /var/www/html/importer && {command} >> "{logfile}" 2>&1
+        - mkdir -p /var/www/html/importer && git clone --single-branch --branch kubernetes https://github.com/RationAI/mirax-importer /var/www/html/importer && {command}
         securityContext:
           runAsUser: 33
           runAsGroup: 33
