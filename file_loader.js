@@ -35,7 +35,7 @@ function upload_iterator(infoNode, uploader, errorHandler) {
 
     //get name without suffix, year and biopsy from the file [...].mrxs
     let {name, year, biopsy} = parseFileName(fileInfo.name);
-    if (!name) {
+    if (!name || !year || !biopsy) {
         errorHandler(`File '${fileInfo.name}' failed to upload: file does not match any pattern! Make sure the file has 4 digits in the year and 5 digits as the biopsy number: YYYY-XXXXX.`);
         return false;
     }
