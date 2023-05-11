@@ -44,22 +44,19 @@ spec:
         imagePullPolicy: Always
         env:
         - name: XO_DB_DRIVER
-          value: pgsql
+          value: {os.environ.get('XO_DB_DRIVER', 'XO_DB_DRIVER-not-found')}
         - name: XO_DB_HOST
-          value: xopat-postgresdb-rw
+          value: {os.environ.get('XO_DB_HOST', 'XO_DB_HOST-not-found')}
         - name: XO_DB_PORT
-          value: '5432'
+          value: {os.environ.get('XO_DB_PORT', 'XO_DB_PORT-not-found')}
         - name: XO_DB_NAME
-          value: postgresdb
+          value: {os.environ.get('XO_DB_NAME', 'XO_DB_NAME-not-found')}
         - name: XO_DB_USER
-          value: browser
+          value: {os.environ.get('XO_DB_USER', 'XO_DB_USER-not-found')}
         - name: XO_DB_PASS
-          valueFrom:
-            secretKeyRef:
-              key: password
-              name: xopat-postgresdb-app
+          value: {os.environ.get('XO_DB_PASS', 'XO_DB_PASS-not-found')}
         - name: XO_MIRAX_SERVER_URL
-          value: https://mirax-xopat.dyn.cloud.e-infra.cz/importer/server
+          value: {os.environ.get('XO_MIRAX_SERVER_URL', 'XO_MIRAX_SERVER_URL-not-found')}
         command: ['bash']
         args:
         - -c
