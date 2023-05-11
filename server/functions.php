@@ -33,11 +33,11 @@ function file_path_year($year) {
 
 function file_path_biopsy($biopsy) {
     if (is_string($biopsy)) $biopsy = intval(trim($biopsy));
-    $biopsy = str_pad($biopsy, 4, '0', STR_PAD_LEFT);
+    $biopsy = str_pad($biopsy, 5, '0', STR_PAD_LEFT);
 
-    $suffix_len = 2; //suffix is last two digits
-    $prefix = substr($biopsy, 0, strlen($biopsy)-$suffix_len);
-    $suffix = substr($biopsy, -$suffix_len);
+    $prefix_len = 2; //suffix is last two digits
+    $prefix = substr($biopsy, 0, $prefix_len);
+    $suffix = substr($biopsy, $prefix_len);
     return "$prefix/$suffix/";
 }
 
