@@ -9,7 +9,7 @@ function file_iterator_predicate(info) {
 /**
  * Iterator, call uploader for ANY file info you deem necessary
  */
-const regExp = /^(.*?([0-9]{4})[_-]([0-9]+).*)\.mrxs$/;
+const regExp = /^(.*?([0-9]{4})[_-]([0-9]{5}).*)\.mrxs$/;
 const fallBackRegExp = /^(.*)\.mrxs$/;
 function parseFileName(name) {
     let match = regExp.exec(name);
@@ -36,7 +36,7 @@ function upload_iterator(infoNode, uploader, errorHandler) {
     //get name without suffix, year and biopsy from the file [...].mrxs
     let {name, year, biopsy} = parseFileName(fileInfo.name);
     if (!name) {
-        errorHandler(`File '${fileInfo.name}' failed to upload: file does not match any pattern!`);
+        errorHandler(`File '${fileInfo.name}' failed to upload: file does not match any pattern! Make sure the file has 4 digits in the year and 5 digits as the biopsy number: YYYY-XXXXX.`);
         return false;
     }
     fileInfo.isMrxs = true;
