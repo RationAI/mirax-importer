@@ -195,7 +195,8 @@ function run_importer_job($log_prefix, $id, $command, ...$args) {
 
     //shell escaping of quotes is '\'' -> close, scape, open
     $args = implode(" ", array_map(fn($x) => is_numeric($x) || is_bool($x) ? $x : "'\''$x'\''", $args));
-    return run_kubernetes_job($log_prefix, "{$server_root}kubernetes/importer_job.py run '$id' '$command $args' '$log_file'");
+    $args .= " >> '\''$log_file'\'' 2>&1";
+    return run_kubernetes_job($log_prefix, "{$server_root}kubernetes/importer_job.py run '$id' '$command $args'");
 }
 
 function run_kubernetes_job($log_prefix, $cmd) {
