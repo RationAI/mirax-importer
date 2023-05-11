@@ -3,6 +3,7 @@ from kubernetes import config, client
 import yaml
 import sys
 import re
+import os
 
 # get current namespace
 namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read()
@@ -16,7 +17,7 @@ service_id=sys.argv[2]
 to_execute=sys.argv[3]
 logfile=sys.argv[4]
 
-pvc = 'pvc-xopat-demo'
+pvc = os.environ.get('XO_KUBE_PVC', 'error-XO_KUBE_PVC-not-set')
 
 # init config
 config.load_incluster_config()
