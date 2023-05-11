@@ -54,6 +54,9 @@ spec:
       - name: snakemake-job
         image: cerit.io/xopat/histopat:v1.1
         imagePullPolicy: Always
+        env:
+        - name: HTTPS_PROXY
+          value: "{os.environ.get('HTTPS_PROXY', 'http://proxy.ics.muni.cz:3128')}"
         command: ["bash"]
         args: ["-c", "mkdir -p {log_path} && snakemake -F target_vis --cores 4 --config slide_fp='{slide}' algorithm='{algorithm}' endpoint='{service}' headers='{headers}' >> '{log_file}' 2>&1"]
         securityContext:
