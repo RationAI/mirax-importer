@@ -115,9 +115,10 @@ function file_name_fixer(string $root) {
                 echo "MATCH $item_name\n";
                 $real_path = $upload_root . $rel_path . "/" . $item_name;
                 $biopsy = $matches[4];
+
                 if (is_string($biopsy)) $biopsy = intval(trim($biopsy));
-                $biopsy = str_pad($biopsy, 4, '0', STR_PAD_LEFT);
-                $target_path = $upload_root . $rel_path . "/" . $matches[1] . $matches[2] . $matches[3] . $biopsy  . $matches[5];
+                $biopsy = str_pad($biopsy, 5, '0', STR_PAD_LEFT);
+                $target_path = $upload_root . $rel_path . "/" . $matches[1] . $matches[2] . $matches[3] . $biopsy . $matches[5];
 
                 if ($real_path != $target_path) {
                     print_moves($real_path, $target_path);
@@ -155,6 +156,7 @@ function mrxs_inspector(string $root) {
             if (!file_exists("$target_path/$item_name")) {
                 //bit dirty moving files, but we know only one mirax per folder exists
                 echo "File should be in $target_path, but stored in $real_path, moving...\n";
+
                 ensure_accessible($target_path, fn()=>exit("File stored in invalid folder, correct folder not writeable!"));
                 $objects = scandir($real_path);
                 foreach($objects as $tmp) {
@@ -167,7 +169,7 @@ function mrxs_inspector(string $root) {
                 }
                 echo "\n";
             }
-
+            return;
             $file = xo_insert_or_ignore_file($fname, "uploaded", $root, $biopsy);
 
             if (!$file) {
