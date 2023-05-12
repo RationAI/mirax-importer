@@ -58,10 +58,13 @@ spec:
           value: "{os.environ.get('XO_MIRAX_SERVER_URL', 'XO_MIRAX_SERVER_URL-not-found')}"
         - name: HTTPS_PROXY
           value: "{os.environ.get('HTTPS_PROXY', 'http://proxy.ics.muni.cz:3128')}"
-        command: ['bash']
-        args:
-        - -c
-        - mkdir -p /var/www/html/importer && git clone --single-branch --branch kubernetes https://github.com/RationAI/mirax-importer /var/www/html/importer && {command}
+        command:
+        - /bin/bash
+        - '-c'
+        - >-
+          mkdir -p /var/www/html/importer && git clone --single-branch --branch kubernetes
+          https://github.com/RationAI/mirax-importer /var/www/html/importer
+          && {command}
         securityContext:
           runAsUser: 33
           runAsGroup: 33
@@ -97,6 +100,7 @@ def status_job(name):
 name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)", "", service_id.lower())
 
 if command == 'run':
+   print(f"Running {to_execute}")
    create_job(name, to_execute)
    exit(0)
 
