@@ -48,10 +48,11 @@ else
   echo "label extraction skipped!"
 fi
 
+#curl does not use proxy as the script performs requests within itself (e.g. in a kubernetes cloud)
 if [ $RESULT -eq 0 ]; then
-  curl -s -X POST $BASIC -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"success\"}" "$5"
+  curl --noproxy '*' -s -X POST $BASIC -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"success\"}" "$5"
 else
-  curl -s -X POST $BASIC -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"error\"}" "$5"
+  curl --noproxy '*' -s -X POST $BASIC -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"error\"}" "$5"
   echo "Failed: Exit $RESULT"
 fi
 echo
