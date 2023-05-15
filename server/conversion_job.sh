@@ -56,5 +56,4 @@ else
   curl --noproxy '*' -s -X POST $BASIC -H "Content-Type: application/json" -d "{\"command\": \"algorithmEvent\", \"fileName\": \"$2\", \"event\": \"$4\", \"payload\": \"error\"}" "$5"
   echo "$PREFIX: Failed: Exit $RESULT"
 fi
-echo
 exit $RESULT
