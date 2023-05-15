@@ -23,10 +23,13 @@ headers=sys.argv[5] if len(sys.argv) > 4 else '{}'
 # data mount point in the job container, irrelevant of what importer uses
 mntpath='/mnt/data'
 
-slide_path=Path(slide).parent
-log_name=datetime.now().strftime("%Y_%m_%d")
-log_path=f"{mntpath}/{slide_path}/logs"
-log_file=f"{log_path}/{log_name}.log"
+# paths
+slide_path=Path(slide)
+slide_folder=f"{mntpath}/{slide_path.parent}"
+slide_file_stem=slide_path.stem
+slide_file=slide_path.name
+log_folder=f"{slide_folder}/logs"
+log_file=f"{datetime.now().strftime('%Y_%m_%d')}.log"
 
 
 pvc = os.environ.get('XO_KUBE_PVC', 'error-XO_KUBE_PVC-not-set')
@@ -34,7 +37,7 @@ pvc = os.environ.get('XO_KUBE_PVC', 'error-XO_KUBE_PVC-not-set')
 # init config
 config.load_incluster_config()
 
-def create_job(name, slide, algorithm, service, headers, log_path, log_file):
+def create_job(name, slide_file, slide_folder, slide_file_stem, algorithm, service, headers, log_folder, log_file):
     job = f"""\
 apiVersion: batch/v1
 kind: Job
@@ -57,8 +60,19 @@ spec:
         env:
         - name: HTTPS_PROXY
           value: "{os.environ.get('HTTPS_PROXY', 'http://proxy.ics.muni.cz:3128')}"
-        command: ["bash"]
-        args: ["-c", "mkdir -p {log_path} && snakemake -F target_vis --cores 4 --config slide_fp='{slide}' algorithm='{algorithm}' endpoint='{service}' headers='{headers}' >> '{log_file}' 2>&1"]
+        - name: OMP_NUM_THREADS
+          value: 8
+        command:
+        - /bin/bash
+        - '-c'
+        - >-
+          mkdir -p {log_folder} && mkdir -p /tmp/analysis
+          && cp "{slide_folder}/{slide_file}" "/tmp/analysis/{slide_file}"
+          && cp -r "{slide_folder}/{slide_file_stem}/." "/tmp/analysis/{slide_file_stem}/"
+          && snakemake -F target_vis --cores 4 --config slide_fp='/tmp/analysis/{slide_file}' algorithm='{algorithm}' endpoint='{service}' headers='{headers}' >> '{log_folder}/{log_file}' 2>&1
+          && rm -f "/tmp/analysis/{slide_file}"
+          && rm -rf "/tmp/analysis/{slide_file_stem}"
+          && cp -r "/tmp/analysis/." "{slide_folder}/"
         securityContext:
           runAsUser: 33
           runAsGroup: 33
@@ -100,7 +114,15 @@ def status_job(name):
 name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)", "", slide.lower())
 
 if command == 'run':
-   create_job(name, f"{mntpath}/{slide}", algorithm.replace('"', '\\"'), service, headers.replace('"', '\\"'), log_path, log_file)
+   create_job(name,
+       slide_file,
+       slide_folder,
+       slide_file_stem,
+       algorithm,
+       service,
+       headers,
+       log_folder,
+       log_file)
    exit(0)
 
 if command == 'status':
