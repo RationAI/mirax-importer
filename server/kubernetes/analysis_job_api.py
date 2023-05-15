@@ -61,7 +61,7 @@ spec:
         - name: HTTPS_PROXY
           value: "{os.environ.get('HTTPS_PROXY', 'http://proxy.ics.muni.cz:3128')}"
         - name: OMP_NUM_THREADS
-          value: 8
+          value: "8"
         command:
         - /bin/bash
         - '-c'

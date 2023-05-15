@@ -204,12 +204,12 @@ function run_kubernetes_job($log_prefix, $cmd) {
     $execs = exec("$cmd 2>&1", $output, $retVal);
     if ($execs !== false) {
         if ($retVal === 0) {
-            $output[]= "Job started...\n";
+            $output[]= "Job started...";
         } else {
-            $output[]= "Failed to initialize the job! Error '$retVal'.\n";
+            $output[]= "Failed to initialize the job! Error '$retVal'.";
         }
     } else {
-        $output[]= "Failed to call the job!\n";
+        $output[]= "Failed to call the job!";
     }
 
     $prefix = "\n$log_prefix> ";
