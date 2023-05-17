@@ -199,7 +199,7 @@ function run_importer_job($log_prefix, $id, $command, ...$args) {
     return run_kubernetes_job($log_prefix, "{$server_root}kubernetes/importer_job.py run '$id' '$command $args'");
 }
 
-function run_kubernetes_job($log_prefix, $cmd) {
+function run_kubernetes_job($log_prefix, $cmd, $print_cmd=false) {
     //job.py run|status <args>
     $execs = exec("$cmd 2>&1", $output, $retVal);
     if ($execs !== false) {
@@ -213,7 +213,10 @@ function run_kubernetes_job($log_prefix, $cmd) {
     }
 
     $prefix = "\n$log_prefix> ";
-    return "$log_prefix> " . $cmd . " --> $retVal" . $prefix . implode($prefix, $output);
+    if ($print_cmd) {
+        return "$log_prefix> " . $cmd . " --> $retVal" . $prefix . implode($prefix, $output) . "\n";
+    }
+    return "$log_prefix> " . implode($prefix, $output) . "\n";
 }
 
 function erase_dirs() {

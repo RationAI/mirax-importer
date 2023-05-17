@@ -151,27 +151,30 @@ function mrxs_inspector(string $root) {
             $real_path = $upload_root . $rel_path . "/";
             $target_path = $upload_root . $path;
 
-            if ($real_path == $target_path) return;
-
-            if (!file_exists("$target_path/$item_name")) {
-                //bit dirty moving files, but we know only one mirax per folder exists
-                echo "File should be in $target_path, but stored in $real_path, moving...\n";
-
-                ensure_accessible($target_path, fn()=>exit("File stored in invalid folder, correct folder not writeable!"));
-                $objects = scandir($real_path);
-                foreach($objects as $tmp) {
-                    if ($tmp != '.' && $tmp != '..') {
-                        echo "$tmp | ";
-                        if (!rename($real_path."/".$tmp, $target_path.$tmp)) {
-                            exit("Failed to move file $target_path.$tmp. Exit.");
-                        }
-                    }
-                }
-                echo "\n";
+            if ($real_path != $target_path) {
+                echo "Invalid file, $real_path$item_name skípping!\n";
+                return;
+                  //moves files from one folder to another
+//                if (!file_exists("$target_path/$item_name")) {
+//                    //bit dirty moving files, but we know only one mirax per folder exists
+//                    // so the predicate will not fire for more files in this dir
+//                    echo "File should be in $target_path, but stored in $real_path, moving...\n";
+//
+//                    ensure_accessible($target_path, fn()=>exit("File stored in invalid folder, correct folder not writeable!"));
+//                    $objects = scandir($real_path);
+//                    foreach($objects as $tmp) {
+//                        if ($tmp != '.' && $tmp != '..') {
+//                            echo "$tmp | ";
+//                            if (!rename($real_path."/".$tmp, $target_path.$tmp)) {
+//                                exit("Failed to move file $target_path.$tmp. Exit.");
+//                            }
+//                        }
+//                    }
+//                    echo "\n";
+//                }
             }
-            return;
-            $file = xo_insert_or_ignore_file($fname, "uploaded", $root, $biopsy);
 
+            $file = xo_insert_or_ignore_file($fname, "uploaded", $root, $biopsy);
             if (!$file) {
                 //inserted because if exists we return the record
                 echo "Processing $item_name...\n";
@@ -181,11 +184,13 @@ function mrxs_inspector(string $root) {
                     $viz = scandir("$target_path/vis/");
                     if ($viz && count($viz) > 2) {
                         //generate viz record!
-                        require_once XO_DB_ROOT . "include.php";
                         xo_file_name_event($fname, "prostate-prediction", "{\"status\":\"processing-finished\",\"__glados\":true}");
                         echo "Vis recorded\n";
                     }
                 } else echo "NO Vis \n";
+
+                sleep(1);
+
             } else {
                 echo "Skipped $item_name.\n";
             }
@@ -196,13 +201,13 @@ function mrxs_inspector(string $root) {
 }
 
 global $safe_mode, $upload_root;
-//if ($safe_mode) {
-//    echo "Not allowed in safe mode!";
-//    exit;
-//}
+if ($safe_mode) {
+    echo "Not allowed in safe mode!";
+    exit;
+}
 require_once "functions.php";
 require_once XO_DB_ROOT . "include.php";
 
 mrxs_inspector($upload_root);
-empty_folder_inspector($upload_root);
+//empty_folder_inspector($upload_root);
 //file_name_fixer($upload_root);

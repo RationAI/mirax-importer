@@ -42,7 +42,7 @@ foreach ($out as $row) {
         else $auth = "";
 
         $cmd = "$server_root/kubernetes/analysis_job_api.py run '$file_path$file_name' '$algorithm_serialized' '$server_api_url/index.php'$auth";
-        output(false, run_kubernetes_job("$event_name:$file_name", $cmd)); //log prefixed via run_kubernetes_job id
+        output(false, run_kubernetes_job("$event_name:$file_name", $cmd, true)); //log prefixed via run_kubernetes_job id
     } catch (Exception $e) {
         output("$event_name:$event_name:{$row['name']}", "Processing failed!");
     }
