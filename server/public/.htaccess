@@ -1,3 +1,4 @@
-DirectoryIndex index.php
-Allow from All
-Satisfy Any
+<If "%{THE_REQUEST} =~ m#^GET /importer/server/public/#">
+    Allow from All
+    Satisfy Any
+</If>
