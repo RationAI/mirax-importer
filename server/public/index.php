@@ -6,7 +6,7 @@ $simple_query = $_GET["ajax"] ?? $_POST["ajax"];
 if ($simple_query) {
     $tissue = $_GET["tissue"] ?? $_POST["tissue"];
     switch ($simple_query) {
-        case "bioFormatsOffset":
+        case "imageCoordinatesOffset":
             if (!$tissue) die("Invalid usage!");
             global $server_root, $upload_root;
             $tissue = mirax_fname_from_tiff($tissue);
