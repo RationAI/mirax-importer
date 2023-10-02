@@ -116,7 +116,7 @@ function upload_file($temp, $target_file_name, $directory, callable $_die) {
 
 function move_item($temp, $target, $perms=null) {
     //ok if no message
-    return move_item_get_err($target, $target, $perms) == "";
+    return move_item_get_err($temp, $target, $perms) == "";
 }
 
 function move_item_get_err($temp, $target, $perms=null) {
