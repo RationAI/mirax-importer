@@ -10,7 +10,9 @@ if ($simple_query) {
             if (!$tissue) die("Invalid usage!");
             global $server_root, $upload_root;
             $tissue = mirax_fname_from_tiff($tissue);
-            send_response(shell_exec("python3 {$server_root}mirax_extract_meta/offset_extractor.py '$upload_root$tissue' 2>&1"));
+            $result = shell_exec("python3 {$server_root}mirax_extract_meta/offset_extractor.py '$upload_root$tissue' 2>&1");
+            if ($result) send_response($result);
+            else error("No data available for $tissue!");
             exit();
         default:
             error("Invalid command");

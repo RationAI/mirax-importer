@@ -97,7 +97,7 @@ def status_job(name):
      print("Job not found")
      pass
 
-name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)", "", service_id.lower())
+name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)|(\s)", "", slide.lower())
 
 if command == 'run':
    print(f"Running {to_execute}")

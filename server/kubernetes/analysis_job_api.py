@@ -111,7 +111,7 @@ def status_job(name):
      print("Job not found")
      pass
 
-name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)", "", slide.lower())
+name = re.sub("(\/)|(_)|(.mrxs)|(.tiff?)|(\s)", "", slide.lower())
 
 if command == 'run':
    create_job(name,

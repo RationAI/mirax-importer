@@ -70,7 +70,7 @@ function _xo_get_err_last() {
     if (is_array($err)) {
         return $err["message"] ?? implode(" | ", $err);
     }
-    return "Unknown error: get_err_last.";
+    return "Unknown error: using get_err_last().";
 }
 
 function make_dir($path, $perms=0775) {
@@ -86,7 +86,7 @@ function relative_upload_path_to_absolute($relative_path) {
     return "/" . clean_path("$upload_root/$relative_path");
 }
 
-function relative_upload_path_to_temp($filename_no_suffix, $is_for_mirax) {
+function absolute_upload_path_to_temp($filename_no_suffix, $is_for_mirax) {
     global $upload_root;
     if (!$is_for_mirax) $filename_no_suffix = "$filename_no_suffix/$filename_no_suffix";
     return "/" . clean_path("$upload_root/.uploads/$filename_no_suffix");
@@ -94,7 +94,7 @@ function relative_upload_path_to_temp($filename_no_suffix, $is_for_mirax) {
 
 function absolute_path_from_records($name, $year, $biopsy, $is_for_mirax, $temp=false) {
     $name_only = pathinfo($name, PATHINFO_FILENAME);
-    if ($temp) return relative_upload_path_to_temp($name_only, $is_for_mirax);
+    if ($temp) return absolute_upload_path_to_temp($name_only, $is_for_mirax);
     $target_path = file_path_from_year_biopsy($name_only, $year, $biopsy, $is_for_mirax);
     return relative_upload_path_to_absolute($target_path);
 }
@@ -115,20 +115,26 @@ function upload_file($temp, $target_file_name, $directory, callable $_die) {
 }
 
 function move_item($temp, $target, $perms=null) {
-    if (file_exists($target)) return false;
+    //ok if no message
+    return move_item_get_err($target, $target, $perms) == "";
+}
+
+function move_item_get_err($temp, $target, $perms=null) {
+    if (file_exists($target)) return "File $target already exists!";
 
     $parent = dirname($target);
     if (!file_exists($parent)) {
         $dir_err = make_dir($parent);
-        if ($dir_err != "") return false;
+        if ($dir_err != "") return $dir_err;
     }
 
     if (rename($temp, $target)) {
         @chmod($target, $perms !== null ? $perms : (is_file($target) ? 0644 : 0755));
-        return true;
+        return "";
     }
-    return false;
+    return "Could not move file $temp to $target!";
 }
+
 
 function _is_dir_empty($dir) {
     return (count(scandir($dir)) == 2);
