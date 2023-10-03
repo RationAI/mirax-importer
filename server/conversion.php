@@ -20,7 +20,7 @@ function process($file_id_list) {
             $cmd = "{$server_root}conversion_job.sh";
             $time = gmdate("Y-m-d H:i:s");
             $log_prefix = "$time $file_name";
-            $args = [$file_name, $row["name"], "$upload_root$file_path", $importer_own_event, "$server_api_url/index.php"];
+            $args = [$file_name, $row["name"], "$upload_root$file_path", $importer_own_event, "$server_api_url/index.php", "", "true"];
 
             if ($run_conversion_as_job) {
                 if ($basic_auth) $args[]=$basic_auth;
