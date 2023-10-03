@@ -34,7 +34,7 @@ fi
 
 if [ ! -z $7 ] || [ ! -f "$TARGET_TIFF" ]; then
   echo "$PREFIX: tiff..."
-  vips tiffsave "$SOURCE_FILE" "$TARGET_TIFF" --tile --pyramid --compression=jpeg --Q=60 --tile-width 512 --tile-height 512 --bigtiff
+  VIPS_CONCURRENCY=8 vips tiffsave "$SOURCE_FILE" "$TARGET_TIFF" --tile --pyramid --compression=jpeg --Q=60 --tile-width 512 --tile-height 512 --bigtiff
   RESULT=$?
 else
   echo "$PREFIX: vips conversion skipped!"
