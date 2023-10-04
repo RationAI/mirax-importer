@@ -20,10 +20,12 @@ function process($file_id_list) {
             $cmd = "{$server_root}conversion_job.sh";
             $time = gmdate("Y-m-d H:i:s");
             $log_prefix = "$time $file_name";
-            $args = [$file_name, $row["name"], "$upload_root$file_path", $importer_own_event, "$server_api_url/index.php", "", "true"];
+            $args = [$file_name, $row["name"], "$upload_root$file_path", $importer_own_event, "$server_api_url/index.php"];
 
             if ($run_conversion_as_job) {
                 if ($basic_auth) $args[]=$basic_auth;
+                else $args[]="";
+                $args[]="true";
                 $log = run_importer_job($log_prefix, "convert-manual-$file_name", $cmd, ...$args);
                 file_put_contents($log_file, $log, FILE_APPEND);
             } else {
