@@ -54,7 +54,7 @@ function parseFileName(name) {
             name: match[1],
             year: match[2],
             biopsy: match[3],
-            extension: match[4]
+            ext: match[4]
         };
     }
 }
@@ -518,6 +518,7 @@ class Uploader {
     copyBulkItem(item, withFileInfo = false) {
         return {
             fileInfo: withFileInfo && item.fileInfo,
+            mainFileName: item.mainFileName,
             biopsy: item.biopsy,
             year: item.year,
             fileName: item.fileName,
@@ -580,7 +581,7 @@ class Uploader {
 
         switch (data["status"]) {
             case "uploaded":
-                if (!routine.uploaded) updateUI("File is uploaded.<br>Biopsy: <b>" + data["biopsy"] + "</b>. You can start the analysis, processed files will be ignored. File is not yet available to the viewer.", false);
+                if (!routine.uploaded) updateUI("File is uploaded.<br>Biopsy: <b>" + data["biopsy"] + "</b>. You can start the analysis, processed files will be ignored. File might not yet be available to the viewer.", false);
                 routine.uploaded = true;
                 break;
                 //todo tiff-* events not used anymore

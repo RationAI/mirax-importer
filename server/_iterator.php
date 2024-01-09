@@ -1,6 +1,8 @@
 #!/usr/bin/env php
 <?php
 require_once "config.php";
+//must have three groups: 1) capture file name without extension 2) capture year 3) capture biopsy
+$mirax_pattern = "/^(.*?([0-9]{4})[_-]([0-9]+).*)\.mrxs$/i";
 
 function file_scan(string   $path,
                    string   $rel_start,

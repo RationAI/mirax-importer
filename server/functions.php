@@ -103,7 +103,8 @@ function absolute_upload_path_to_temp($filename_no_suffix, $is_for_mirax_data_fi
  */
 function absolute_path_from_records($name, $year, $biopsy, $reference_name=false, $temp=false) {
 
-    if ($reference_name) {
+    //mirax has special behavior
+    if ($reference_name && str_ends_with($reference_name, ".mrxs")) {
         $extension = pathinfo($name, PATHINFO_EXTENSION);
         $main_name_only = pathinfo($reference_name, PATHINFO_FILENAME);
 
