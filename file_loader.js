@@ -1,16 +1,44 @@
+const extensionParsers = {
+    mrxs: (fileInfo, infoNode, uploader, errorHandler, name, year, biopsy) => {
+        fileInfo.isMrxs = true;
+        const binRoot = infoNode[".."]?.[name];
+        if (!binRoot) {
+            errorHandler(`MRXS data folder missing! Searching for folder: ${name}`);
+            return false;
+        }
+
+        for (const bin in binRoot) {
+            const binFile = binRoot[bin]?.["."];
+            if (binFile) {
+                binFile.isMrxs = false;
+                uploader(binFile, year, biopsy);
+            } // todo else fail?
+        }
+        uploader(fileInfo, year, biopsy);
+        return true;
+    },
+    svs: (fileInfo, infoNode, uploader, errorHandler, name, year, biopsy) => {
+        fileInfo.isSvs = true;
+        uploader(fileInfo, year, biopsy);
+        return true;
+    }
+};
+
+const extensions = Object.keys(extensionParsers);
+
 /**
  * Evaluator which files are invoked the upload iterator
  */
-function file_iterator_predicate(info) {
-    return info.name.slice((info.name.lastIndexOf(".") - 1 >>> 0) + 2)
-        === "mrxs";
+function file_name_predicate(filename) {
+    const ext = filename.slice((filename.lastIndexOf(".") - 1 >>> 0) + 2);
+    return extensions.includes(ext);
 }
 
 /**
  * Iterator, call uploader for ANY file info you deem necessary
  */
-const regExp = /^(.*?([0-9]{4})[_-]([0-9]{5}).*)\.mrxs$/;
-const fallBackRegExp = /^(.*)\.mrxs$/;
+const regExp = new RegExp(`^(.*?([0-9]{4})[_-]([0-9]{5}).*)\.(${extensions.join("|")})$`);
+const fallBackRegExp = new RegExp(`^(.*)\\.(${extensions.join("|")})$`);
 function parseFileName(name) {
     let match = regExp.exec(name);
     if (!Array.isArray(match)) {
@@ -25,7 +53,8 @@ function parseFileName(name) {
         return {
             name: match[1],
             year: match[2],
-            biopsy: match[3]
+            biopsy: match[3],
+            extension: match[4]
         };
     }
 }
@@ -33,31 +62,19 @@ function parseFileName(name) {
 function upload_iterator(infoNode, uploader, errorHandler) {
     const fileInfo = infoNode["."];
 
-    //get name without suffix, year and biopsy from the file [...].mrxs
-    let {name, year, biopsy} = parseFileName(fileInfo.name);
+    //get name without suffix, year and biopsy from the file [...].ext
+    let {name, year, biopsy, ext} = parseFileName(fileInfo.name);
     if (!name || !year || !biopsy) {
         errorHandler(`File '${fileInfo.name}' failed to upload: invalid name! Make sure the file has 4 digits in the year (YYYY) and 5 digits as the biopsy number (XXXXX).`);
         return false;
     }
-    fileInfo.isMrxs = true;
-    const binRoot = infoNode[".."]?.[name];
-    if (!binRoot) {
-        errorHandler(`MRXS data folder missing! Searching for folder: ${name}`);
-        return false;
-    }
 
-    for (const bin in binRoot) {
-        const binFile = binRoot[bin]?.["."];
-        if (binFile) {
-            binFile.isMrxs = false;
-            uploader(binFile, year, biopsy);
-        } // todo else fail?
+    if (extensions.includes(ext)) {
+        return extensionParsers[ext](fileInfo, infoNode, uploader, errorHandler, name, year, biopsy);
     }
-    uploader(fileInfo, year, biopsy);
+    errorHandler(`Unknown file! Attempt to upload unsupported file extension: '${ext}'`);
+    return false;
 }
-
-
-
 
 
 
@@ -92,8 +109,8 @@ const UI = {
     get inputChecksumField() {
         return document.getElementById("checksum-uploader");
     },
-    get inputMiraxFileName() {
-        return document.getElementById("mirax-filename-uploader");
+    get inputMainFileName() {
+        return document.getElementById("main-filename-uploader");
     },
     get inputFileName() {
         return document.getElementById("filename-uploader");
@@ -370,7 +387,7 @@ class Uploader {
 
         UI.inputBiopsy.value = opts.biopsy || "";
         UI.inputChecksumField.value = opts.checksum || "";
-        UI.inputMiraxFileName.value = opts.miraxFile || "";
+        UI.inputMainFileName.value = opts.mainFileName || "";
 
         if (opts.fileInfo) {
             if (withFileData) {
@@ -711,7 +728,7 @@ class Uploader {
 
             bulk.index = i;
 
-            const targetElem = bulk.data.find(x => x.fileInfo.name.endsWith("mrxs"));
+            const targetElem = bulk.data.find(x => file_name_predicate(x.fileInfo.name));
             if (bulk.parseErrors.length > 0) {
                 this.createBulkProgressElement(targetElem?.fileInfo?.name || "Item " + i, i, bulk);
                 this.updateBulkElementError(i, bulk.parseErrors.join("<br>"), undefined, true);
@@ -723,7 +740,8 @@ class Uploader {
 
             for (let j = 0; j < bulkData.length; j++) {
                 const elem = bulkData[j];
-                elem.miraxFile = targetElem.fileInfo.name;
+                //attach main file name in case multiple files belong to the upload bulk (e.g. mirax)
+                elem.mainFileName = targetElem.fileInfo.name;
                 elem.index = j;
                 if (!monitorOnly) {
                     bulk.jobList.push(this.formSubmit.bind(this, "uploadFile", elem));
@@ -835,14 +853,14 @@ class Uploader {
             }
 
             ref["."] = file;
-            if (file_iterator_predicate(file)) {
+            if (file_name_predicate(name)) {
                 iterator.push(ref);
             }
         }
 
         if (iterator.length < 1) {
             console.error("Cannot upload files: no valid file");
-            this.finish("Failed to upload files: no valid files provided. Make sure you upload the correct folder with <i>.mrxs</i> file, not the child folder with the data files only.");
+            this.finish("Failed to upload files: no valid files provided. When working with MIRAX, make sure you upload the correct folder with <i>.mrxs</i> files, not the child folder with the data files only.");
             return;
         }
 
@@ -890,7 +908,7 @@ class Uploader {
         function createCheckBulkNode(title, index, bulk, targetElem) {
             if (bulk.parseErrors.length > 0) {
                 return `<div class="py-2 px-4 m-2 rounded border pointer"><h3>${title}  ${printTitleMeta(targetElem)}</h3><div 
-id="bulk-element-${index}" class="mt-1 mx-1"><div class="error-container">Invalid MRXS File! This file won't 
+id="bulk-element-${index}" class="mt-1 mx-1"><div class="error-container">Invalid File! This file won't 
 be uploaded. Biopsy <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b><code>${bulk.parseErrors.join("<br>")}</code></div></div></div>`;
             }
             return `<div class="py-2 px-4 m-2 rounded border pointer"><h3>${title}  ${printTitleMeta(targetElem)}</h3>
@@ -903,7 +921,7 @@ be uploaded. Biopsy <b>${targetElem.biopsy}</b>. Year <b>${targetElem.year}</b><
         for (let i = 0; i < bulkList.length; i++) {
             const bulk = bulkList[i];
             bulk.index = i;
-            const targetElem = bulk.data.find(x => x.fileInfo.name.endsWith("mrxs"));
+            const targetElem = bulk.data.find(x => file_name_predicate(x.fileInfo.name));
 
             if (!targetElem.year || !targetElem.biopsy) bulk.parseErrors.push("Invalid Year or Biopsy number: this file won't be uploaded!");
             data.push(createCheckBulkNode(targetElem.fileInfo?.name || "Item " + (i + 1), i, bulk, targetElem));

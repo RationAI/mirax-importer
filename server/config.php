@@ -1,6 +1,7 @@
 <?php
 
 const XO_DB_ROOT = "../../xo_db/";
+const ALLOWED_EXTENSIONS = ["mrxs", "svs"];
 $upload_root = "/var/www/data/";
 $safe_mode = false; //e.g. deleting all for testing purposes
 $log_file = "{$upload_root}log.txt";

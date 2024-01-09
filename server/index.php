@@ -69,18 +69,19 @@ switch ($_POST["command"]) {
         }
 
         $file_data = $_FILES["uploadedFile"];
-        $mirax_name = $_POST["mirax-name"];
+        $main_name = $_POST["mainFileName"];
         $biopsy = $_POST["biopsy"];
         $year = $_POST["year"];
         $metadata = $_POST["meta"];
+        //$name = $_POST["fileName"]; not used, this is parsed from real name passed via upload form
 
         if (!$biopsy || !$file_data || !$year) {
             error("Cannot upload files - upload failed: missing metadata.");
         }
 
         $name = clean_path($file_data["name"]);
-        $is_mirax = str_ends_with($name, ".mrxs");
-        $target_path = absolute_path_from_records($mirax_name, $year, $biopsy, $is_mirax, true);
+        $main_name = clean_path($main_name);
+        $target_path = absolute_path_from_records($name, $year, $biopsy, $main_name, true);
         $error_handler = function ($title) {
             echo json_encode((object)array(
                 "status" => "error",
@@ -117,15 +118,17 @@ switch ($_POST["command"]) {
         $biopsy = $_POST["biopsy"];
         $year = $_POST["year"];
         $name = $_POST["fileName"];
-        if (!$biopsy || !$year || !$name) {
+        $main_name = $_POST["mainFileName"];
+
+        if (!$biopsy || !$year || !$name || !$main_name) {
             error("Cannot verify file existence - execution failed: missing metadata.");
         }
-        $file = xo_get_file_by_name(tiff_fname_from_mirax($name));
+        $file = xo_get_file_by_name(tiff_fname_from_raw_filename($name));
         if (isset($file["id"])) {
             send_response(true);
         }
         send_response(file_exists(
-            absolute_path_from_records($name, $year, $biopsy, str_ends_with($name, ".mrxs")) . "/" . $name
+            absolute_path_from_records($name, $year, $biopsy, $main_name) . "/" . $name
         ));
     }
 
@@ -137,23 +140,26 @@ switch ($_POST["command"]) {
         if (!$biopsy || !$year || !$name) {
             error("Cannot verify file existence - execution failed: missing metadata.");
         }
-        send_response(get_file_status(tiff_fname_from_mirax($name), trim($event)));
+        send_response(get_file_status(tiff_fname_from_raw_filename($name), trim($event)));
     }
 
     case "fileUploadBulkFinished": {
         $biopsy = $_POST["biopsy"];
         $year = trim($_POST["year"]);
         $name = trim($_POST["fileName"]);
+        $main_name = $_POST["mainFileName"];
 
-        if (!$biopsy || !$year || !$name) {
+        if (!$biopsy || !$year || !$name || !$main_name) {
             error("Cannot process files - fileUploadBulkFinished failed: missing or invalid metadata.");
         }
 
         $year = clean_path($year);
         $name = clean_path($name);
-        $tiff_name = tiff_fname_from_mirax($name);
-        $filepath = absolute_path_from_records($name, $year, $biopsy, true, false);
-        $upload_filepath = absolute_path_from_records($name, $year, $biopsy, true, true);
+        $main_name = clean_path($main_name);
+
+        $tiff_name = tiff_fname_from_raw_filename($name);
+        $filepath = absolute_path_from_records($name, $year, $biopsy, $main_name);
+        $upload_filepath = absolute_path_from_records($name, $year, $biopsy, $main_name, true);
         try {
             if (!move_item($upload_filepath, $filepath, 0755)) {
                 error("Uploaded file cannot be moved to the final destination!", _xo_get_err_last());
@@ -174,9 +180,14 @@ switch ($_POST["command"]) {
         $event = trim($_POST["event"]);
         $status = trim($_POST["payload"]);
 
+        //TODO: fixme: pipeline works on mrxs files only!
         if (strpos($name, ".") === false) {
             //just the name without extension
             $name = "$name.mrxs";
+        }
+
+        if (!str_ends_with($name, ".mrxs")) {
+            error("Processing works only for mirax files for now!");
         }
 
         if (strpos($status, "processing") !== false) {
@@ -191,7 +202,7 @@ switch ($_POST["command"]) {
 
         try {
             require_once XO_DB_ROOT . "include.php";
-            xo_file_name_event(tiff_fname_from_mirax($name), $event, "{\"status\":\"$data\"}");
+            xo_file_name_event(tiff_fname_from_raw_filename($name), $event, "{\"status\":\"$data\"}");
             send_response();
         } catch (Exception $e) {
             $message = $e->getMessage();

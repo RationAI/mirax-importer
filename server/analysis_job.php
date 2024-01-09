@@ -28,7 +28,7 @@ require_once XO_DB_ROOT . "include.php";
 $out = xo_files_by_id($file_id_list);
 foreach ($out as $row) {
     try {
-        $file_name = mirax_fname_from_tiff($row["name"]);
+        $file_name = raw_filename_from_tiff($row["name"]);
         $file_path = mirax_path_from_db_record($row);
         $algorithm_name = $algorithm["name"];
         global $upload_root, $server_root, $server_api_url, $basic_auth;
