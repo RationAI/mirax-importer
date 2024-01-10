@@ -59,7 +59,7 @@ if (isset($_POST['biopsy'])) {
         error("Invalid file: provided no value.");
     }
     //process files with missing event type or where event type not like "processing%"
-    $out = xo_file_name_get_by_missing_event(tiff_fname_from_mirax($param), $event_name, "processing%");
+    $out = xo_file_name_get_by_missing_event(tiff_fname_from_raw_filename($param), $event_name, "processing%");
     $param = "file name <b>$param</b>";
 
 } else if (isset($_POST['fileList'])) {
@@ -70,7 +70,7 @@ if (isset($_POST['biopsy'])) {
     } else {
         //process files with missing event type or where event type not like "processing%"
         $out = xo_file_name_list_get_by_missing_event(
-            array_map(fn($f)=>tiff_fname_from_mirax($f), $files), $event_name, "processing%");
+            array_map(fn($f)=>tiff_fname_from_raw_filename($f), $files), $event_name, "processing%");
     }
     $param = "file list <b>" . implode(", ", $files) . "</b>";
 

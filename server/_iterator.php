@@ -1,6 +1,8 @@
 #!/usr/bin/env php
 <?php
 require_once "config.php";
+//must have three groups: 1) capture file name without extension 2) capture year 3) capture biopsy
+$mirax_pattern = "/^(.*?([0-9]{4})[_-]([0-9]+).*)\.mrxs$/i";
 
 function file_scan(string   $path,
                    string   $rel_start,
@@ -66,6 +68,16 @@ function file_scan(string   $path,
  */
 function db_file_scan_inspector(string $root, string $fname_pattern, callable $iterator,
                                 callable $predicate=null, callable $err=null) {
+    db_scan_inspector(false, $root, $fname_pattern, $iterator, $predicate, $err);
+}
+function db_dir_scan_inspector(string $root, string $fname_pattern, callable $iterator,
+                                callable $predicate=null, callable $err=null) {
+    db_scan_inspector(true, $root, $fname_pattern, $iterator, $predicate, $err);
+}
+
+function db_scan_inspector(bool $for_directories, string $root, string $fname_pattern, callable $iterator,
+                               callable $predicate=null, callable $err=null) {
+    echo "Scanning $root...\n";
     $clbck = function ($is_file, $item_name, $rel_path, $start_path) use ($iterator, $err, $fname_pattern) {
         try {
             if (preg_match($fname_pattern, $item_name, $matches, PREG_UNMATCHED_AS_NULL)) {
@@ -79,10 +91,18 @@ function db_file_scan_inspector(string $root, string $fname_pattern, callable $i
             }
         }
     };
-    $pred = fn($f, $path, $is_dir) => !$is_dir && $predicate($f, $path);
+    $pred = $for_directories ?
+        fn($f, $path, $is_dir) => $is_dir && $predicate($f, $path) :
+        fn($f, $path, $is_dir) => !$is_dir && $predicate($f, $path);
+
     file_scan($root, "",  $clbck, $pred, false, 9999);
 }
 
+/**
+ * Erases empty folders in the biobank
+ * @param string $root
+ * @return void
+ */
 function empty_folder_inspector(string $root) {
     $clbck = function ($is_file, $item_name, $rel_path, $start_path) {
         global $upload_root;
@@ -106,24 +126,39 @@ function print_moves($x, $y) {
     echo $x . " --> " . $y . "\n";
 }
 
-function file_name_fixer(string $root) {
-    $clbck = function ($is_file, $item_name, $rel_path, $start_path) {
-        global $upload_root;
+/**
+ * Renames files in correct recursion order - first children, then parent folder if matches the
+ * biopsy structure.
+ * @param string $root
+ * @param $actually_perform
+ * @return void
+ */
+function file_name_fixer(string $root, $actually_perform=false) {
+    $clbck = function ($is_file, $item_name, $rel_path, $start_path) use ($root, $actually_perform) {
 
         try {
             if (preg_match("/^(.*?)([0-9]{1,4})([_-])([0-9]+)(.*)$/i", $item_name, $matches, PREG_UNMATCHED_AS_NULL)) {
                 echo "MATCH $item_name\n";
-                $real_path = $upload_root . $rel_path . "/" . $item_name;
                 $biopsy = $matches[4];
-
                 if (is_string($biopsy)) $biopsy = intval(trim($biopsy));
                 $biopsy = str_pad($biopsy, 5, '0', STR_PAD_LEFT);
-                $target_path = $upload_root . $rel_path . "/" . $matches[1] . $matches[2] . $matches[3] . $biopsy . $matches[5];
 
-                if ($real_path != $target_path) {
-                    print_moves($real_path, $target_path);
-                    if (!rename($real_path, $target_path)) {
-                        exit("Failed to move file $target_path. Exit.");
+                $correct_name = $matches[1] . $matches[2] . $matches[3] . $biopsy . $matches[5];
+
+                $real_path = $root . "/" . $rel_path . "/" . $item_name;
+                $target_path = $root . "/" .  $rel_path . "/" . $correct_name;
+
+                   if ($real_path != $target_path) {
+                    $is_file = file_exists($real_path);
+
+                    if ($is_file) {
+                        print_moves($real_path, $target_path);
+                        if ($actually_perform && !rename($real_path, $target_path)) {
+                            exit("Failed to move file $real_path. Exit.");
+                        }
+                        echo " Renamed.\n";
+                    } else {
+                        echo "ERR: Invalid $root/$rel_path/$item_name - missing mirax meta file or its directory!\n";
                     }
                 }
             }
@@ -132,7 +167,7 @@ function file_name_fixer(string $root) {
             print_r($e);
         }
     };
-    $pred = fn($f, $path, $is_dir) => $is_dir || str_ends_with($f, ".tif") || str_ends_with($f, ".tiff") || str_ends_with($f, ".mrxs");
+    $pred = fn($f, $path, $is_dir) => $is_dir || str_ends_with($f, ".tif") || str_ends_with($f, ".tiff") || str_ends_with($f, ".mrxs") || str_ends_with($f, ".xml");
     file_scan($root, "",  $clbck, $pred, true, 6);
 }
 
@@ -142,7 +177,7 @@ function mrxs_inspector(string $root) {
     db_file_scan_inspector($root, $mirax_pattern,
         function ($is_file, $item_name, $rel_path, $start_path, $matches) {
             global $upload_root;
-            $fname = tiff_fname_from_mirax($item_name);
+            $fname = tiff_fname_from_raw_filename($item_name);
             $biopsy = $matches[3];
             $root = file_path_year($matches[2]);
 
@@ -200,14 +235,131 @@ function mrxs_inspector(string $root) {
     );
 }
 
+function load_raw_files_prepare_upload(string $root, bool $actually_perform=false) {
+    global $mirax_pattern;
+
+    db_file_scan_inspector($root, $mirax_pattern,
+        function ($is_file, $item_name, $rel_path, $start_path, $matches) use ($root, $actually_perform) {
+            global $upload_root;
+            $biopsy = $matches[3];
+            $year = $matches[2];
+            $target_temp_path = absolute_path_from_records($item_name, $year, $biopsy, $item_name, true);
+            $fname_nosuffix =  pathinfo($item_name, PATHINFO_FILENAME);
+
+            $raw_mirax_file = "$root/$rel_path/$item_name";
+            $raw_mirax_dir = "$root/$rel_path/$fname_nosuffix";
+
+            $target_temp_mirax_file = "$target_temp_path/$item_name";
+            $target_temp_mirax_dir = "$target_temp_path/$fname_nosuffix";
+
+            $is_file = file_exists($raw_mirax_file);
+            $has_dir = file_exists($raw_mirax_dir);
+
+            if (!$actually_perform) {
+                if ($is_file) echo "FILE $raw_mirax_file will be moved to $target_temp_mirax_file \n";
+                else echo "ERR mirax!";
+                if ($has_dir) echo "DIR $raw_mirax_dir will be moved to $target_temp_mirax_dir\n";
+                else echo "ERR dir!";
+            } else {
+                echo "Moving to $target_temp_mirax_file ...";
+
+                if ($is_file && $has_dir) {
+
+                    ensure_accessible($target_temp_path,
+                        fn()=>exit("File stored in invalid folder, correct folder not writeable!"));
+                    if (!rename($raw_mirax_file, $target_temp_mirax_file)) {
+                        exit("Failed to move file $raw_mirax_file. Exit.");
+                    }
+                    if (!rename($raw_mirax_dir, $target_temp_mirax_dir)) {
+                        exit("Failed to move file $raw_mirax_dir. Exit.");
+                    }
+                    echo " Moved.\n";
+
+                } else {
+                    echo "ERR: Invalid $root/$rel_path/$item_name - missing mirax meta file or its directory!\n";
+                }
+            }
+        },
+        fn($file, $path) => str_ends_with($file, ".mrxs"),
+        fn($d, $e) => print_r(["e"=>$e, "d"=>$d])
+    );
+}
+
+function raw_files_finish_upload(string $root, bool $actually_perform=false) {
+
+    db_dir_scan_inspector($root, "/^(.*?([0-9]{4})[_-]([0-9]+).*)$/i",
+        function ($is_file, $item_name, $rel_path, $start_path, $matches) use ($root, $actually_perform) {
+            $biopsy = $matches[3];
+            $year = $matches[2];
+
+            $year = clean_path($year);
+            $name = clean_path($item_name);
+            $tiff_name = tiff_fname_from_raw_filename($name);
+            $filepath = absolute_path_from_records($name, $year, $biopsy, $name, false);
+            $upload_filepath = absolute_path_from_records($name, $year, $biopsy, $name, true);
+
+            $exists = is_dir($upload_filepath);
+
+            echo "Access $rel_path/$item_name ";
+
+            if (!$actually_perform) {
+                echo "File $upload_filepath would be moved to $filepath (biopsy $biopsy, year $year) and converted!\n";
+            } else {
+                echo "Moving $upload_filepath to $filepath...";
+
+                if ($exists) {
+                    if (is_dir($filepath)) {
+                        echo " skipping - already exists!\n";
+                        return;
+                    }
+
+                    try {
+                        $err = move_item_get_err($upload_filepath, $filepath, 0755);
+                        if ($err != "") {
+                            exit("Uploaded file cannot be moved to the final destination! " . $err);
+                        }
+                        $file = xo_insert_or_ignore_file($tiff_name, "uploaded", file_path_year($year), $biopsy);
+                        if ($file != null) exit("Uploaded file present in the database: '$name'!");
+                    } catch (Exception $e) {
+                        exit("File uploaded but the system failed to create an upload record: '$name'! " . $e->getMessage());
+                    }
+                    file_uploaded($name, $tiff_name, $filepath);
+
+                    sleep(20);
+                    exit("TEST!");
+
+                } else {
+                    echo "ERR: Invalid file $upload_filepath - nothing to upload!\n";
+                }
+            }
+        },
+        function($file, $path) {
+            //accept folders that contain mirax file
+            if (!is_dir("$path/$file")) return false;
+            $objects = is_readable($path) ? scandir($path) : array();
+            foreach ($objects as $file) {
+                if (str_ends_with($file, ".mrxs")) return true;
+            }
+            return false;
+        },
+        fn($d, $e) => print_r(["e"=>$e, "d"=>$d])
+    );
+}
+
 global $safe_mode, $upload_root;
-if ($safe_mode) {
+if (false && $safe_mode) {
     echo "Not allowed in safe mode!";
     exit;
 }
 require_once "functions.php";
 require_once XO_DB_ROOT . "include.php";
 
-mrxs_inspector($upload_root);
+//mrxs_inspector($upload_root);
 //empty_folder_inspector($upload_root);
 //file_name_fixer($upload_root);
+file_name_fixer("$upload_root/2023/01/007", true);
+file_name_fixer("$upload_root/2023/01/007", true);
+file_name_fixer("$upload_root/2023/01/007", true);
+
+//load_raw_files_prepare_upload("$upload_root/.temp/2023-02-11-checked-ok", false);
+//raw_files_finish_upload("$upload_root/.uploads", true);

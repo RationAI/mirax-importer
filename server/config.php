@@ -14,8 +14,6 @@ $analysis_log_file = "{$upload_root}analysis_log.txt";
 $server_root = "/var/www/html/importer/server/";
 //event name used for the importer instance (do not change at runtime)
 $importer_own_event = "mirax-importer";
-//must have three groups: 1) capture file name without extension 2) capture year 3) capture biopsy
-$mirax_pattern = "/^(.*?([0-9]{4})[_-]([0-9]+).*)\.mrxs$/i";
 //the server URL where it is deployed ($server_api_url/config.php is this file)
 $server_api_url = _read_env_mirax_importer("XO_MIRAX_SERVER_URL", "http://localhost:8081/importer/server");
 $basic_auth = _read_env_mirax_importer("XO_MIRAX_SERVER_BASIC_AUTH", false);

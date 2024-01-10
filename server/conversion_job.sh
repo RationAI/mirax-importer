@@ -44,7 +44,7 @@ fi
 #extract label image, ignore failure
 if [ ! -z $7 ] || [ ! -f "$3/label.png" ]; then
   echo "$PREFIX: label..."
-  python3 mirax_extract_meta/label_extractor.py "$SOURCE_FILE" "$3/label.png"
+  python3 raw_file_extract_meta/label_extractor.py "$SOURCE_FILE" "$3/label.png"
 else
   echo "$PREFIX: label extraction skipped!"
 fi

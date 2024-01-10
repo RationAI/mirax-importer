@@ -9,8 +9,8 @@ if ($simple_query) {
         case "imageCoordinatesOffset":
             if (!$tissue) die("Invalid usage!");
             global $server_root, $upload_root;
-            $tissue = mirax_fname_from_tiff($tissue);
-            $result = shell_exec("python3 {$server_root}mirax_extract_meta/offset_extractor.py '$upload_root$tissue' 2>&1");
+            $tissue = raw_filename_from_tiff($tissue);
+            $result = shell_exec("python3 {$server_root}raw_file_extract_meta/offset_extractor.py '$upload_root$tissue' 2>&1");
             if ($result) send_response($result);
             else error("No data available for $tissue!");
             exit();

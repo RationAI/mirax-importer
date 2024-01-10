@@ -11,16 +11,17 @@
 
 ////////////////////////////// functions
 
-function tiff_fname_from_mirax($mirax) {
-    if (preg_match("/\.tiff?$/i", $mirax)) return $mirax;
-    return "$mirax.tiff";
+function tiff_fname_from_raw_filename($fname) {
+    if (preg_match("/\.tiff?$/i", $fname)) return $fname;
+    return "$fname.tiff";
 }
 
-function mirax_fname_from_tiff($tiff) {
+function raw_filename_from_tiff($tiff) {
     if (preg_match("/^(.*)\.tiff?$/i", $tiff, $match)) {
         return $match[1];
     }
-    if (str_ends_with($tiff, ".mrxs")) {
+    $ext = pathinfo($tiff, PATHINFO_EXTENSION);
+    if (array_search($ext, ALLOWED_EXTENSIONS)) {
         return $tiff;
     }
     throw new Exception("File is not a mirax file! $tiff");
@@ -41,18 +42,18 @@ function file_path_biopsy($biopsy) {
     return "$prefix/$suffix/";
 }
 
-function file_path_from_year_biopsy($filename_no_suffix, $year, $biopsy, $is_for_mirax) {
+function file_path_from_year_biopsy($filename_no_suffix, $year, $biopsy, $is_for_mirax_data_files=false) {
     $yp = file_path_year($year);
     $bp = file_path_biopsy($biopsy);
 
-    if ($is_for_mirax) return "$yp$bp$filename_no_suffix/";
-    else return "$yp$bp$filename_no_suffix/$filename_no_suffix/";
+    if ($is_for_mirax_data_files) return "$yp$bp$filename_no_suffix/$filename_no_suffix/";
+    return "$yp$bp$filename_no_suffix/";
 }
 
 function mirax_path_from_db_record($record) {
-    $file = mirax_fname_from_tiff($record["name"]);
+    $file = raw_filename_from_tiff($record["name"]);
     return file_path_from_year_biopsy(
-        pathinfo($file, PATHINFO_FILENAME), $record["root"], $record["biopsy"], true);
+        pathinfo($file, PATHINFO_FILENAME), $record["root"], $record["biopsy"]);
 }
 
 function clean_path($path) {
@@ -86,16 +87,35 @@ function relative_upload_path_to_absolute($relative_path) {
     return "/" . clean_path("$upload_root/$relative_path");
 }
 
-function absolute_upload_path_to_temp($filename_no_suffix, $is_for_mirax) {
+function absolute_upload_path_to_temp($filename_no_suffix, $is_for_mirax_data_files) {
     global $upload_root;
-    if (!$is_for_mirax) $filename_no_suffix = "$filename_no_suffix/$filename_no_suffix";
+    if ($is_for_mirax_data_files) $filename_no_suffix = "$filename_no_suffix/$filename_no_suffix";
     return "/" . clean_path("$upload_root/.uploads/$filename_no_suffix");
 }
 
-function absolute_path_from_records($name, $year, $biopsy, $is_for_mirax, $temp=false) {
-    $name_only = pathinfo($name, PATHINFO_FILENAME);
-    if ($temp) return absolute_upload_path_to_temp($name_only, $is_for_mirax);
-    $target_path = file_path_from_year_biopsy($name_only, $year, $biopsy, $is_for_mirax);
+/**
+ * @param $name
+ * @param $year
+ * @param $biopsy
+ * @param $reference_name if multiple files are uploaded within bulk, the main file name
+ * @param $temp
+ * @return string
+ */
+function absolute_path_from_records($name, $year, $biopsy, $reference_name=false, $temp=false) {
+
+    //mirax has special behavior
+    if ($reference_name && str_ends_with($reference_name, ".mrxs")) {
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+        $main_name_only = pathinfo($reference_name, PATHINFO_FILENAME);
+
+        // retrieve path for mirax files, which are same as other files for the main mrxs file, otherwise in a nested folder
+        if ($temp) return absolute_upload_path_to_temp($main_name_only, $extension !== "mrxs");
+        $target_path = file_path_from_year_biopsy($main_name_only, $year, $biopsy, $extension !== "mrxs");
+        return relative_upload_path_to_absolute($target_path);
+    }
+    $main_name_only = pathinfo($name, PATHINFO_FILENAME);
+    if ($temp) return absolute_upload_path_to_temp($main_name_only, false);
+    $target_path = file_path_from_year_biopsy($main_name_only, $year, $biopsy, false);
     return relative_upload_path_to_absolute($target_path);
 }
 
@@ -167,7 +187,7 @@ if (!function_exists('str_starts_with')) {
 }
 
 //finishing touches - mirax pyramid, extract label
-function file_uploaded($mrxs_name, $tiff_name, $directory) {
+function file_uploaded($main_name, $tiff_name, $directory) {
     //make sure .skip file exists
     $parent_dir = dirname($directory);
     if (!file_exists("$parent_dir/.pull")) {
@@ -177,12 +197,12 @@ function file_uploaded($mrxs_name, $tiff_name, $directory) {
     global $server_root, $log_file, $run_conversion_as_job, $server_api_url, $basic_auth, $importer_own_event;
     $cmd = "{$server_root}conversion_job.sh";
     $time = gmdate("Y-m-d H:i:s");
-    $log_prefix = "$time $mrxs_name";
-    $args = [$mrxs_name, $tiff_name, $directory, $importer_own_event, "$server_api_url/index.php"];
+    $log_prefix = "$time $main_name";
+    $args = [$main_name, $tiff_name, $directory, $importer_own_event, "$server_api_url/index.php"];
 
     if ($run_conversion_as_job) {
         if ($basic_auth) $args[]=$basic_auth;
-        $log = run_importer_job($log_prefix, "convert-$mrxs_name", $cmd, ...$args);
+        $log = run_importer_job($log_prefix, "convert-$main_name", $cmd, ...$args);
         file_put_contents($log_file, $log, FILE_APPEND);
     } else {
         if ($basic_auth) $args[]=$basic_auth;
