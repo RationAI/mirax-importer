@@ -9,10 +9,6 @@ file = openslide.OpenSlide(sys.argv[1])
 label = file.associated_images["label"]
 
 # mirax stores label upside down
-if sys.argv[1].endsWith(".mrxs"):
+if sys.argv[1].endswith(".mrxs"):
     label = label.rotate(180)
 label.save(sys.argv[2])
-
-
-
-
