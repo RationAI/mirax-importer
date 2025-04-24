@@ -436,7 +436,7 @@ class Uploader {
         $(UI.progress).append(`<div id="bulk-${index}-container" class="py-2 px-4 m-2 rounded border pointer position-relative">
 <h3>${title}</h3>
 <div id="bulk-element-${index}" class="mt-1 mx-1">
-<span class="m-2">Waiting in queue</span>
+<span class="m-2">Waiting in queue for upload</span>
 </div>
 <code id="bulk-checksum-${index}" class="my-2 pl-3 d-block">MD5 Checksum: ${bulk.checksum || "not available."}</code>
 <div id="bulk-error-${index}" class="mt-1 mx-1"></div>

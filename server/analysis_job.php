@@ -33,6 +33,12 @@ foreach ($out as $row) {
         $algorithm_name = $algorithm["name"];
         global $upload_root, $server_root, $server_api_url, $basic_auth;
 
+        //jobs are not supported by other than mirax files for now
+        if (!str_ends_with($file_name, ".mrxs")) {
+            output("$event_name:$file_name", "Failed to call the job! File $file_path$file_name is not supported by the JOB system!");
+            return;
+        }
+
         if (!file_exists("$upload_root$file_path$file_name")) {
             output("$event_name:$file_name", "Failed to call the job! File $file_path$file_name does not exist!");
             return;
