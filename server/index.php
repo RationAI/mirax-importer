@@ -11,11 +11,9 @@ if (!isset($_POST) || count($_POST) < 1) {
     $_POST = json_decode(file_get_contents('php://input'), true);
 }
 
-function exception_handler(Throwable $exception) {
+set_exception_handler(function (Throwable $exception) {
     set_error("Unknown error occurred!", $exception->getMessage());
-}
-
-set_exception_handler('exception_handler');
+});
 
 function set_error($title, ...$args) { //todo
     error($title, $args);

@@ -6,11 +6,7 @@ if len(sys.argv) < 3:
 
 # args: path to raw file, output png path
 file = openslide.OpenSlide(sys.argv[1])
-label = file.associated_images["label"]
-
-# mirax stores label upside down
-if sys.argv[1].endsWith(".mrxs"):
-    label = label.rotate(180)
+label = file.associated_images["label"].rotate(180)
 label.save(sys.argv[2])
 
 
